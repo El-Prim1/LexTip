@@ -1,0 +1,39 @@
+{
+  "manifest_version": 3,
+  "name": "LinguaLens - 3-Layer AI Translator",
+  "version": "1.0.0",
+  "description": "Instant 3-layer text translation & linguistic analysis with isolated Shadow DOM.",
+  "permissions": [
+    "storage",
+    "activeTab",
+    "scripting"
+  ],
+  "host_permissions": [
+    "https://*/*",
+    "http://*/*"
+  ],
+  "background": {
+    "service_worker": "background/service-worker.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content/content-script.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_title": "LinguaLens Settings"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "content/content-styles.css",
+        "assets/*"
+      ],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}
