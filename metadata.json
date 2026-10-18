@@ -1,0 +1,6 @@
+{
+  "name": "LinguaLens Extension & Testbench",
+  "description": "Chrome Extension (Manifest v3) for 3-layer text translation and linguistic analysis with isolated Shadow DOM and SPA resilience.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
