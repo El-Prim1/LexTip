@@ -142,6 +142,7 @@
   pointer-events: none;
 }
 
+<<<<<<< HEAD
 /* Arrow positioned at bottom pointing down (popup rendered above word) */
 .ll-arrow-bottom,
 .ll-popover.popup--above .ll-arrow,
@@ -168,3 +169,16 @@
   border-bottom: none;
 }
 
+=======
+.ll-arrow-bottom {
+  bottom: -4px;
+  border-right: 1px solid #334155;
+  border-bottom: 1px solid #334155;
+}
+
+.ll-arrow-top {
+  top: -4px;
+  border-left: 1px solid #334155;
+  border-top: 1px solid #334155;
+}
+>>>>>>> 216ab7acc97ba37dd67d4a6ea5df66b9c601d669

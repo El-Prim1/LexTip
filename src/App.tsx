@@ -16,6 +16,7 @@ import {
   Info,
   Target
 } from 'lucide-react';
+import { lookupWord, formatDisplayResult } from './dictionary-service';
 
 interface EventLogItem {
   id: string;
@@ -243,7 +244,7 @@ export default function App() {
   }, []);
 
   // Precision Viewport Coordinate Calculator
-  const computeAndApplyPosition = (rect: DOMRect, text: string) => {
+  const computeAndApplyPosition = async (rect: DOMRect, text: string) => {
     if (!shadowRootInstance.current) return;
 
     const popover = shadowRootInstance.current.getElementById('popover-box');
@@ -253,27 +254,13 @@ export default function App() {
 
     if (!popover || !arrow || !source || !target) return;
 
-    const result = lookupWord(text);
-    const lemma = result.lemma || result.selectedWord || '';
-    const rawSelected = result.selectedWord || result.lemma || '';
+    // Use dictionary service for lookup
+    const result = await lookupWord(text);
+    const displayText = formatDisplayResult(result.selectedWord, result.lemma, result.translation);
 
-    const cleanLemma = normalizeText(lemma);
-    const cleanSelected = normalizeText(rawSelected);
-    const selectedWord = cleanSelected;
-
-    const divider = shadowRootInstance.current.querySelector('.ll-divider') as HTMLElement;
-    const targetTranslation =
-      !result.translation || result.translation.trim().toLowerCase() === 'translation not found'
-        ? 'Translation not found'
-        : result.translation;
-
-    if (divider) divider.style.display = 'inline';
-    if (cleanLemma === cleanSelected || !cleanLemma || !cleanSelected) {
-      source.textContent = selectedWord || lemma;
-    } else {
-      source.textContent = `${cleanLemma} (${cleanSelected})`;
-    }
-    target.textContent = targetTranslation;
+    const [sourcePart, targetPart] = displayText.split(' — ');
+    source.textContent = sourcePart;
+    target.textContent = targetPart;
     popover.classList.add('ll-visible');
 
 
@@ -363,9 +350,9 @@ export default function App() {
   useEffect(() => {
     let timer: any = null;
 
-    const handleSelection = () => {
+    const handleSelection = async () => {
       clearTimeout(timer);
-      timer = setTimeout(() => {
+      timer = setTimeout(async () => {
         const selection = window.getSelection();
         if (!selection || selection.isCollapsed || selection.rangeCount === 0) return;
 
@@ -381,7 +368,7 @@ export default function App() {
         if (rect.width === 0 && rect.height === 0) return;
 
         lastActiveRangeRef.current = range;
-        computeAndApplyPosition(rect, text);
+        await computeAndApplyPosition(rect, text);
       }, 150);
     };
 
