@@ -1,0 +1,45 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import vm from 'node:vm';
+
+const root = process.cwd();
+const dictionaryPath = path.join(root, 'extension', 'dictionaries', 'english-russian-dictionary.json');
+const dictionaryData = JSON.parse(fs.readFileSync(dictionaryPath, 'utf8'));
+const serviceSource = fs.readFileSync(
+  path.join(root, 'extension', 'background', 'dictionary-service.js'),
+  'utf8',
+);
+
+const context = {
+  console,
+  performance,
+  module: { exports: {} },
+  chrome: { runtime: { getURL: (file) => file } },
+  fetch: async () => ({ json: async () => dictionaryData }),
+};
+
+vm.runInNewContext(serviceSource, context, { filename: 'dictionary-service.js' });
+const { lookupWord, formatDisplayResult } = context.module.exports;
+
+const exactEntry = dictionaryData.find((entry) => entry.word === 'the');
+assert.ok(exactEntry, 'dictionary contains an exact lookup entry');
+
+const exactResult = await lookupWord('the');
+assert.equal(exactResult.found, true, 'exact word lookup succeeds');
+assert.equal(exactResult.lemma, 'the', 'exact word keeps its lemma');
+assert.equal(exactResult.translation, exactEntry.translation, 'exact translation comes from JSON');
+
+const inflectedResult = await lookupWord('handles');
+assert.equal(inflectedResult.found, true, 'inflected word lookup succeeds');
+assert.equal(inflectedResult.lemma, 'handle', 'inflected word resolves to its lemma');
+
+const missingResult = await lookupWord('word-not-in-dictionary');
+assert.equal(missingResult.found, false, 'unknown word reports a miss');
+assert.equal(
+  formatDisplayResult('word-not-in-dictionary', missingResult.lemma, missingResult.translation),
+  'word-not-in-dictionary — Translation not found',
+  'missing word uses the required fallback format',
+);
+
+console.log('Dictionary integration tests passed.');

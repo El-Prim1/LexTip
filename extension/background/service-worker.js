@@ -16,7 +16,21 @@ chrome.runtime.onInstalled.addListener(() => {
 // Runtime Message Router (Content Script -> Service Worker)
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'TRANSLATE_REQUEST') {
-    const { text } = message.payload;
+    const { text } = message.payload || {};
+
+    if (!text || typeof text !== 'string') {
+      sendResponse({
+        success: true,
+        data: {
+          translation: 'Translation not found',
+          lemma: '',
+          selectedWord: '',
+          layer: 1,
+          latencyMs: 0,
+        },
+      });
+      return false;
+    }
 
     const startTime = performance.now();
 
@@ -31,7 +45,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             translation: result.translation,
             lemma: result.lemma,
             selectedWord: result.selectedWord,
-            transcription: result.transcription,
             layer: 1,
             latencyMs: latencyMs,
           },
@@ -44,7 +57,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             translation: 'Translation not found',
             lemma: result.lemma,
             selectedWord: result.selectedWord,
-            transcription: null,
             layer: 1,
             latencyMs: latencyMs,
           },
@@ -58,7 +70,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           translation: 'Translation not found',
           lemma: text,
           selectedWord: text,
-          transcription: null,
           layer: 1,
           latencyMs: 0,
         },

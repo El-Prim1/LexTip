@@ -169,8 +169,16 @@ function lemmatizeSimple(word) {
  */
 function generateLemmaCandidates(word) {
   const primaryLemma = lemmatizeSimple(word);
-  const candidates = [primaryLemma];
   const normalizedWord = normalizeText(word);
+  const candidates = [];
+
+  if (primaryLemma) {
+    candidates.push(primaryLemma);
+  }
+
+  if (normalizedWord && !candidates.includes(normalizedWord)) {
+    candidates.push(normalizedWord);
+  }
 
   // Add fallback candidates
   if (normalizedWord.endsWith('es') && normalizedWord.length > 4) {
@@ -210,7 +218,6 @@ async function loadDictionary() {
         dictionaryMap.set(key, {
           word: entry.word,
           translation: entry.translation,
-          transcription: entry.transcription,
         });
       }
     }
@@ -228,7 +235,7 @@ async function loadDictionary() {
 
 /**
  * Lookup word in dictionary with lemmatization fallback
- * Returns: { found: boolean, translation: string, lemma: string, transcription: string }
+ * Returns: { found: boolean, translation: string, lemma: string }
  */
 async function lookupWord(word) {
   await loadDictionary();
@@ -243,7 +250,6 @@ async function lookupWord(word) {
         translation: entry.translation,
         lemma: candidate,
         selectedWord: normalizeText(word),
-        transcription: entry.transcription,
       };
     }
   }
@@ -254,7 +260,6 @@ async function lookupWord(word) {
     translation: null,
     lemma: candidates[0] || normalizeText(word),
     selectedWord: normalizeText(word),
-    transcription: null,
   };
 }
 
@@ -264,7 +269,10 @@ async function lookupWord(word) {
 function formatDisplayResult(selectedWord, lemma, translation) {
   const cleanSelected = normalizeText(selectedWord);
   const cleanLemma = normalizeText(lemma);
-  const targetTranslation = translation || 'Translation not found';
+  const targetTranslation =
+    !translation || translation.trim().toLowerCase() === 'translation not found'
+      ? 'Translation not found'
+      : translation;
 
   if (!cleanLemma || cleanSelected === cleanLemma) {
     return `${cleanSelected} — ${targetTranslation}`;

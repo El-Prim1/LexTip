@@ -393,6 +393,10 @@ export function generateLemmaCandidates(word: string): string[] {
     candidates.push(primaryLemma);
   }
 
+  if (normalizedWord && !candidates.includes(normalizedWord)) {
+    candidates.push(normalizedWord);
+  }
+
   // Fallbacks for dictionary lookups
   if (normalizedWord.endsWith('es') && normalizedWord.length > 4) {
     const withoutEs = normalizedWord.slice(0, -2);
