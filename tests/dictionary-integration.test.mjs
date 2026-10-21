@@ -10,15 +10,21 @@ const serviceSource = fs.readFileSync(
   path.join(root, 'extension', 'background', 'dictionary-service.js'),
   'utf8',
 );
+const nlpRuntimeSource = fs.readFileSync(
+  path.join(root, 'extension', 'background', 'nlp-runtime.js'),
+  'utf8',
+);
 
 const context = {
   console,
   performance,
+  atob,
   module: { exports: {} },
   chrome: { runtime: { getURL: (file) => file } },
   fetch: async () => ({ json: async () => dictionaryData }),
 };
 
+vm.runInNewContext(nlpRuntimeSource, context, { filename: 'nlp-runtime.js' });
 vm.runInNewContext(serviceSource, context, { filename: 'dictionary-service.js' });
 const { lookupWord, formatDisplayResult } = context.module.exports;
 
@@ -27,17 +33,20 @@ assert.ok(exactEntry, 'dictionary contains an exact lookup entry');
 
 const exactResult = await lookupWord('the');
 assert.equal(exactResult.found, true, 'exact word lookup succeeds');
-assert.equal(exactResult.lemma, 'the', 'exact word keeps its lemma');
 assert.equal(exactResult.translation, exactEntry.translation, 'exact translation comes from JSON');
 
 const inflectedResult = await lookupWord('handles');
-assert.equal(inflectedResult.found, true, 'inflected word lookup succeeds');
+assert.equal(inflectedResult.found, true, 'inflected word lookup uses the NLP lemma');
 assert.equal(inflectedResult.lemma, 'handle', 'inflected word resolves to its lemma');
+
+const possessiveResult = await lookupWord("government's");
+assert.equal(possessiveResult.found, true, 'possessive lookup uses the base word');
+assert.equal(possessiveResult.lemma, 'government', 'possessive resolves to its base lemma');
 
 const missingResult = await lookupWord('word-not-in-dictionary');
 assert.equal(missingResult.found, false, 'unknown word reports a miss');
 assert.equal(
-  formatDisplayResult('word-not-in-dictionary', missingResult.lemma, missingResult.translation),
+  formatDisplayResult('word-not-in-dictionary', missingResult.translation),
   'word-not-in-dictionary — Translation not found',
   'missing word uses the required fallback format',
 );

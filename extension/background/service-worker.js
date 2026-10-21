@@ -4,7 +4,7 @@
  */
 
 // Import dictionary service
-importScripts('dictionary-service.js');
+importScripts('nlp-runtime.js', 'dictionary-service.js');
 
 // Installation Lifecycle Listener
 chrome.runtime.onInstalled.addListener(() => {
@@ -25,6 +25,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           translation: 'Translation not found',
           lemma: '',
           selectedWord: '',
+          partOfSpeech: null,
+          analysis: null,
           layer: 1,
           latencyMs: 0,
         },
@@ -45,6 +47,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             translation: result.translation,
             lemma: result.lemma,
             selectedWord: result.selectedWord,
+            partOfSpeech: result.partOfSpeech,
+            analysis: result.analysis,
             layer: 1,
             latencyMs: latencyMs,
           },
@@ -57,6 +61,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             translation: 'Translation not found',
             lemma: result.lemma,
             selectedWord: result.selectedWord,
+            partOfSpeech: result.partOfSpeech,
+            analysis: result.analysis,
             layer: 1,
             latencyMs: latencyMs,
           },
@@ -70,6 +76,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           translation: 'Translation not found',
           lemma: text,
           selectedWord: text,
+          partOfSpeech: null,
+          analysis: null,
           layer: 1,
           latencyMs: 0,
         },

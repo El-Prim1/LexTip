@@ -4,8 +4,9 @@
  * Integrates with the lemmatization pipeline
  */
 
-import { lemmatize, generateLemmaCandidates, formatDisplayResult } from './lemmatizer';
 import dictionaryData from '../extension/dictionaries/english-russian-dictionary.json';
+import { analyzeWord, normalizeLookupKey, type WordAnalysis } from './nlp/lemmatization';
+import type { PartOfSpeech } from 'wink-nlp';
 
 interface DictionaryEntry {
   word: string;
@@ -15,8 +16,10 @@ interface DictionaryEntry {
 interface LookupResult {
   found: boolean;
   translation: string | null;
-  lemma: string;
   selectedWord: string;
+  lemma: string;
+  partOfSpeech: PartOfSpeech | null;
+  analysis: WordAnalysis | null;
 }
 
 const dictionaryMap = new Map<string, DictionaryEntry>();
@@ -43,30 +46,38 @@ export async function loadDictionary(): Promise<Map<string, DictionaryEntry>> {
 export async function lookupWord(word: string): Promise<LookupResult> {
   await loadDictionary();
 
-  const candidates = generateLemmaCandidates(word);
+  const selectedWord = normalizeLookupKey(word);
+  const analysis = analyzeWord(word);
+  const lemma = analysis?.lemma ?? selectedWord;
+  const entry = dictionaryMap.get(lemma) ?? dictionaryMap.get(selectedWord);
 
-  for (const candidate of candidates) {
-    const entry = dictionaryMap.get(candidate);
-    if (entry) {
-      return {
-        found: true,
-        translation: entry.translation,
-        lemma: candidate,
-        selectedWord: word.trim().toLowerCase(),
-      };
-    }
+  if (entry) {
+    return {
+      found: true,
+      translation: entry.translation,
+      selectedWord,
+      lemma,
+      partOfSpeech: analysis?.partOfSpeech ?? null,
+      analysis,
+    };
   }
 
-  // Not found
   return {
     found: false,
     translation: null,
-    lemma: candidates[0] || word.trim().toLowerCase(),
-    selectedWord: word.trim().toLowerCase(),
+    selectedWord,
+    lemma,
+    partOfSpeech: analysis?.partOfSpeech ?? null,
+    analysis,
   };
 }
 
-/**
- * Format display result using the shared formatter from lemmatizer
- */
-export { formatDisplayResult };
+export function formatDisplayResult(selectedWord: string, translation?: string | null): string {
+  const cleanSelected = selectedWord.trim().toLowerCase();
+  const targetTranslation =
+    !translation || translation.trim().toLowerCase() === 'translation not found'
+      ? 'Translation not found'
+      : translation;
+
+  return `${cleanSelected} — ${targetTranslation}`;
+}

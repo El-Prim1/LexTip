@@ -256,7 +256,7 @@ export default function App() {
 
     // Use dictionary service for lookup
     const result = await lookupWord(text);
-    const displayText = formatDisplayResult(result.selectedWord, result.lemma, result.translation);
+    const displayText = formatDisplayResult(result.selectedWord, result.translation);
 
     const [sourcePart, targetPart] = displayText.split(' — ');
     source.textContent = sourcePart;
@@ -445,41 +445,7 @@ export default function App() {
       .replace(/[\s"'`”’»“\]\)\}<>\.,;:!?\-_—–#*~]+$/, '');
   };
 
-  const generateLemmaCandidates = (word: string) => {
-    const candidates: string[] = [];
-    if (!word || word.length < 3) return candidates;
-
-    if (word.endsWith('ies') && word.length > 4) {
-      candidates.push(word.slice(0, -3) + 'y');
-    } else if (word.endsWith('es') && word.length > 4) {
-      candidates.push(word.slice(0, -2));
-      candidates.push(word.slice(0, -1));
-    } else if (word.endsWith('s') && !word.endsWith('ss') && word.length > 3) {
-      candidates.push(word.slice(0, -1));
-    }
-
-    if (word.endsWith('ied') && word.length > 4) {
-      candidates.push(word.slice(0, -3) + 'y');
-    } else if (word.endsWith('ed') && word.length > 4) {
-      candidates.push(word.slice(0, -2));
-      candidates.push(word.slice(0, -1));
-      if (word.length > 5 && word[word.length - 3] === word[word.length - 4] && word[word.length - 3] !== 'l') {
-        candidates.push(word.slice(0, -3));
-      }
-    }
-
-    if (word.endsWith('ing') && word.length > 4) {
-      candidates.push(word.slice(0, -3));
-      candidates.push(word.slice(0, -3) + 'e');
-      if (word.length > 5 && word[word.length - 4] === word[word.length - 5] && word[word.length - 4] !== 'l') {
-        candidates.push(word.slice(0, -4));
-      }
-    }
-
-    return Array.from(new Set(candidates.filter((c) => c && c !== word)));
-  };
-
-  const lookupWord = (input: string) => {
+  const legacySeedLookupWord = (input: string) => {
     const clean = normalizeText(input);
     if (!clean) {
       return {
@@ -533,28 +499,11 @@ export default function App() {
       };
     }
 
-    // 3. Query the database using the base form via lemmatization
-    const candidates = generateLemmaCandidates(clean);
-    for (const candidate of candidates) {
-      const candidateMatch = seedDictionary.find((entry) => entry.lemma === candidate);
-      if (candidateMatch) {
-        return {
-          lemma: candidateMatch.lemma,
-          selectedWord: input,
-          translation: candidateMatch.definitions.join(', '),
-        };
-      }
-    }
-
     return {
-      lemma: candidates[0] || clean,
+      lemma: clean,
       selectedWord: input,
       translation: 'Translation not found',
     };
-  };
-
-  const mockTranslate = (input: string) => {
-    return lookupWord(input).translation;
   };
 
   const handleAddDynamicNode = () => {
@@ -1105,7 +1054,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     scrolling the page never causes coordinate drift. The local seed ensures sub-millisecond offline lookup for all 18 lemmas and their inflections.
                   </p>
 
-                  {/* Step 2.3 Lemmatizer & Punctuation Test Strip */}
+                  {/* Basic punctuation test strip */}
                   <div className="p-3 rounded-lg bg-indigo-950/40 border border-indigo-800/60 text-xs text-indigo-200 space-y-1.5">
                     <div className="font-semibold text-indigo-300">Step 2.3 Morphology & Punctuation Test:</div>
                     <div className="text-slate-300 leading-normal">
@@ -1342,7 +1291,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     <CheckCircle2 className="w-4 h-4 text-cyan-400" />
                   </div>
                   <h4 className="text-xs font-semibold text-white">Layer 1 Local IndexedDB</h4>
-                  <p className="text-[11px] text-slate-400">LinguaLensDB, punctuation stripper & suffix lemmatizer (-s, -ed, -ing).</p>
+                  <p className="text-[11px] text-slate-400">Local dictionary plug with punctuation normalization.</p>
                   <span className="text-[10px] font-mono text-emerald-400 mt-auto">COMPLETED & VERIFIED</span>
                 </div>
 
