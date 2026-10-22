@@ -436,76 +436,6 @@ export default function App() {
     setEventLogs((prev) => [{ id: Math.random().toString(), time: timeStr, type, message, detail }, ...prev.slice(0, 19)]);
   };
 
-  const normalizeText = (text: string) => {
-    if (!text) return '';
-    return text
-      .trim()
-      .toLowerCase()
-      .replace(/^[\s"'`“‘«„\[\(\{<>\.,;:!?\-_—–#*~]+/, '')
-      .replace(/[\s"'`”’»“\]\)\}<>\.,;:!?\-_—–#*~]+$/, '');
-  };
-
-  const legacySeedLookupWord = (input: string) => {
-    const clean = normalizeText(input);
-    if (!clean) {
-      return {
-        lemma: input,
-        selectedWord: input,
-        translation: 'Translation not found',
-      };
-    }
-
-    // Seeded dictionary from extension/dictionaries/custom-seed.json (Step 2.1)
-    const seedDictionary: Array<{ lemma: string; definitions: string[]; forms: string[] }> = [
-      { lemma: 'handle', definitions: ['обрабатывать', 'управлять', 'справляться'], forms: ['handles', 'handled', 'handling'] },
-      { lemma: 'state', definitions: ['состояние', 'положение', 'государство'], forms: ['states', 'stated', 'stating'] },
-      { lemma: 'manage', definitions: ['управлять', 'руководить'], forms: ['manages', 'managed', 'managing'] },
-      { lemma: 'management', definitions: ['менеджмент', 'управление', 'руководство'], forms: [] },
-      { lemma: 'isolate', definitions: ['изолировать', 'обособлять'], forms: ['isolates', 'isolated', 'isolating'] },
-      { lemma: 'isolation', definitions: ['изоляция', 'обособление'], forms: [] },
-      { lemma: 'shadow', definitions: ['тень', 'защищенный DOM'], forms: ['shadows', 'shadowed', 'shadowing'] },
-      { lemma: 'viewport', definitions: ['область просмотра', 'экран'], forms: ['viewports'] },
-      { lemma: 'mutation', definitions: ['мутация', 'изменение узла'], forms: ['mutations'] },
-      { lemma: 'boundary', definitions: ['граница', 'предел'], forms: ['boundaries'] },
-      { lemma: 'debounce', definitions: ['устранять дребезг', 'задерживать вызов'], forms: ['debounces', 'debounced', 'debouncing'] },
-      { lemma: 'escape', definitions: ['выходить', 'клавиша Esc'], forms: ['escapes', 'escaped', 'escaping'] },
-      { lemma: 'polysemy', definitions: ['полисемия', 'многозначность слова'], forms: [] },
-      { lemma: 'linguistics', definitions: ['лингвистика', 'языкознание'], forms: ['linguistic'] },
-      { lemma: 'instant', definitions: ['мгновенный', 'немедленный (0мс)'], forms: ['instantly'] },
-      { lemma: 'dictionary', definitions: ['словарь', 'справочник'], forms: ['dictionaries'] },
-      { lemma: 'database', definitions: ['база данных', 'хранилище'], forms: ['databases'] },
-      { lemma: 'lookup', definitions: ['поиск', 'обращение к словарю'], forms: ['lookups'] },
-      { lemma: 'seed', definitions: ['заполнять начальными данными', 'семя'], forms: ['seeds', 'seeded', 'seeding'] },
-      { lemma: 'example', definitions: ['пример', 'образец'], forms: ['examples'] },
-    ];
-
-    // 1. Direct Lemma lookup in database
-    const directLemma = seedDictionary.find((entry) => entry.lemma === clean);
-    if (directLemma) {
-      return {
-        lemma: directLemma.lemma,
-        selectedWord: input,
-        translation: directLemma.definitions.join(', '),
-      };
-    }
-
-    // 2. Inflected forms lookup in database
-    const formMatch = seedDictionary.find((entry) => entry.forms.includes(clean));
-    if (formMatch) {
-      return {
-        lemma: formMatch.lemma,
-        selectedWord: input,
-        translation: formMatch.definitions.join(', '),
-      };
-    }
-
-    return {
-      lemma: clean,
-      selectedWord: input,
-      translation: 'Translation not found',
-    };
-  };
-
   const handleAddDynamicNode = () => {
     const phrases = [
       'The fixed positioning engine eliminates scroll offset bugs across all modern browsers.',
@@ -819,83 +749,33 @@ function calculatePopoverPosition(rect) {
 ]`,
 
     'service-worker.js': `// extension/background/service-worker.js
-// Phase 2: Layer 1 Local Dictionary & IndexedDB Engine
-const DB_CONFIG = { NAME: 'LinguaLensDB', VERSION: 1, STORE: 'dictionary' };
-let dbInstance = null;
+importScripts('nlp-runtime.js', 'dictionary-service.js');
 
-function openDatabase() {
-  if (dbInstance) return Promise.resolve(dbInstance);
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_CONFIG.NAME, DB_CONFIG.VERSION);
-    request.onupgradeneeded = (event) => {
-      const db = event.target.result;
-      if (!db.objectStoreNames.contains(DB_CONFIG.STORE)) {
-        const store = db.createObjectStore(DB_CONFIG.STORE, { keyPath: 'id', autoIncrement: true });
-        store.createIndex('by_lemma', 'lemma', { unique: false });
-        store.createIndex('by_source_lemma', ['sourceLang', 'lemma'], { unique: false });
-        store.createIndex('by_forms', 'forms', { multiEntry: true, unique: false });
-      }
-    };
-    request.onsuccess = (event) => { dbInstance = event.target.result; resolve(dbInstance); };
-    request.onerror = (event) => reject(event.target.error);
-  });
-}
-
-// Auto-seed on extension install from custom-seed.json
-async function seedDatabaseFromCustomSeed() {
-  const url = chrome.runtime.getURL('dictionaries/custom-seed.json');
-  const response = await fetch(url);
-  const seedData = await response.json();
-  const db = await openDatabase();
-  const tx = db.transaction(DB_CONFIG.STORE, 'readwrite');
-  const store = tx.objectStore(DB_CONFIG.STORE);
-  for (const item of seedData) store.put(item);
-}
-
-// Sub-millisecond lookup (<2ms) via primary lemma & multiEntry forms index
-async function lookupLocalWord(queryWord, sourceLang = 'en') {
-  const cleanWord = queryWord.trim().toLowerCase();
-  const startTime = performance.now();
-  const db = await openDatabase();
-  const tx = db.transaction(DB_CONFIG.STORE, 'readonly');
-  const store = tx.objectStore(DB_CONFIG.STORE);
-  
-  // 1. Check lemma index
-  let match = await new Promise((res) => {
-    const req = store.index('by_lemma').get(cleanWord);
-    req.onsuccess = () => res(req.result || null);
-    req.onerror = () => res(null);
-  });
-
-  // 2. Fall back to multiEntry forms index
-  if (!match) {
-    match = await new Promise((res) => {
-      const req = store.index('by_forms').get(cleanWord);
-      req.onsuccess = () => res(req.result || null);
-      req.onerror = () => res(null);
-    });
-  }
-
-  const latencyMs = Math.max(0.1, Number((performance.now() - startTime).toFixed(2)));
-  return { match, latencyMs };
-}
-
-chrome.runtime.onInstalled.addListener(() => seedDatabaseFromCustomSeed());
+chrome.runtime.onInstalled.addListener(() => {
+  loadDictionary();
+});
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.type === 'TRANSLATE_REQUEST') {
-    lookupLocalWord(message.payload.text).then(({ match, latencyMs }) => {
-      sendResponse({
-        success: true,
-        data: {
-          translation: match ? match.definitions.join(', ') : 'перевод',
-          layer: match ? 1 : 2,
-          latencyMs
-        }
-      });
+  if (message.type !== 'TRANSLATE_REQUEST') return false;
+  const { text } = message.payload || {};
+  if (!text || typeof text !== 'string') return false;
+
+  const startTime = performance.now();
+  lookupWord(text).then((result) => {
+    sendResponse({
+      success: true,
+      data: {
+        translation: result.translation || 'Translation not found',
+        lemma: result.lemma,
+        selectedWord: result.selectedWord,
+        partOfSpeech: result.partOfSpeech,
+        analysis: result.analysis,
+        layer: 1,
+        latencyMs: Math.max(0.1, Number((performance.now() - startTime).toFixed(2))),
+      },
     });
-    return true; // Keep port open for async response
-  }
+  });
+  return true;
 });`,
   };
 

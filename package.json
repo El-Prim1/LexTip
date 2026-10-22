@@ -11,7 +11,7 @@
     "lint": "tsc --noEmit",
     "test:dictionary": "node tests/dictionary-integration.test.mjs",
     "build:extension-nlp": "node scripts/build-extension-nlp.mjs",
-    "test:nlp": "tsx tests/lemmatization.test.ts"
+    "test:nlp": "node scripts/run-nlp-test.mjs"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

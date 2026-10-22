@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "LinguaLens - 3-Layer AI Translator",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Instant 3-layer text translation & linguistic analysis with isolated Shadow DOM.",
   "permissions": [
     "storage",

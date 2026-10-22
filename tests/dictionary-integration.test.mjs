@@ -26,7 +26,13 @@ const context = {
 
 vm.runInNewContext(nlpRuntimeSource, context, { filename: 'nlp-runtime.js' });
 vm.runInNewContext(serviceSource, context, { filename: 'dictionary-service.js' });
-const { lookupWord, formatDisplayResult } = context.module.exports;
+const { loadDictionary, lookupWord, formatDisplayResult, getDictionaryStats } = context.module.exports;
+
+await loadDictionary();
+
+const stats = getDictionaryStats();
+assert.equal(stats.skipped, 0, 'legacy dictionary records load without skips');
+assert.ok(stats.loaded > 0, 'legacy dictionary records are indexed');
 
 const exactEntry = dictionaryData.find((entry) => entry.word === 'the');
 assert.ok(exactEntry, 'dictionary contains an exact lookup entry');
@@ -34,6 +40,9 @@ assert.ok(exactEntry, 'dictionary contains an exact lookup entry');
 const exactResult = await lookupWord('the');
 assert.equal(exactResult.found, true, 'exact word lookup succeeds');
 assert.equal(exactResult.translation, exactEntry.translation, 'exact translation comes from JSON');
+assert.equal(exactResult.structured.matchType, 'direct', 'exact lookup reports a direct match');
+assert.equal(exactResult.structured.sourceLanguage, 'en', 'structured result preserves source language');
+assert.equal(exactResult.structured.targetLanguage, 'ru', 'structured result preserves target language');
 
 const inflectedResult = await lookupWord('handles');
 assert.equal(inflectedResult.found, true, 'inflected word lookup uses the NLP lemma');
@@ -42,6 +51,7 @@ assert.equal(inflectedResult.lemma, 'handle', 'inflected word resolves to its le
 const possessiveResult = await lookupWord("government's");
 assert.equal(possessiveResult.found, true, 'possessive lookup uses the base word');
 assert.equal(possessiveResult.lemma, 'government', 'possessive resolves to its base lemma');
+assert.equal(possessiveResult.structured.matchType, 'lemma', 'possessive lookup reports a lemma match');
 
 const missingResult = await lookupWord('word-not-in-dictionary');
 assert.equal(missingResult.found, false, 'unknown word reports a miss');
