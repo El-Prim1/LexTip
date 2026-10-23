@@ -15,6 +15,8 @@
     GAP: 8, // Strictly ~8px gap above/below selection
     HOST_TAG_ID: 'lingualens-popover-host',
     MAX_SELECTION_LENGTH: 300,
+    RATE_LIMIT_REQUESTS: 3, // Max requests per second
+    RATE_LIMIT_WINDOW_MS: 1000, // 1 second window
   };
 
   const ISOLATED_CSS = `
@@ -170,6 +172,31 @@
   let debounceTimer = null;
   let mutationObserver = null;
   let lastActiveRange = null;
+
+  // Rate limiting state (sliding window)
+  let requestTimestamps = [];
+
+  /**
+   * Rate limiter using sliding window algorithm
+   */
+  function checkRateLimit() {
+    const now = Date.now();
+    const windowStart = now - CONFIG.RATE_LIMIT_WINDOW_MS;
+
+    // Remove timestamps outside the window
+    while (requestTimestamps.length > 0 && requestTimestamps[0] < windowStart) {
+      requestTimestamps.shift();
+    }
+
+    // Check if limit exceeded
+    if (requestTimestamps.length >= CONFIG.RATE_LIMIT_REQUESTS) {
+      return false;
+    }
+
+    // Add current timestamp
+    requestTimestamps.push(now);
+    return true;
+  }
 
   function initShadowHost() {
     if (hostElement && shadowRoot) return;
@@ -354,6 +381,16 @@
   }
 
   function dispatchTranslationRequest(text) {
+    // Check rate limit before dispatching
+    if (!checkRateLimit()) {
+      console.warn('[LinguaLens] Rate limit exceeded, throttling request');
+      // Still attempt the request after a delay
+      setTimeout(() => {
+        dispatchTranslationRequest(text);
+      }, CONFIG.RATE_LIMIT_WINDOW_MS);
+      return;
+    }
+
     let resolved = false;
 
     const applyFallback = () => {
