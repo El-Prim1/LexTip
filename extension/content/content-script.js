@@ -368,7 +368,7 @@
 
     if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
       try {
-        const timer = setTimeout(applyFallback, 400);
+        const timer = setTimeout(applyFallback, 10000);
 
         chrome.runtime.sendMessage(
           {

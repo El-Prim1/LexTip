@@ -11,7 +11,12 @@
     "lint": "tsc --noEmit",
     "test:dictionary": "node tests/dictionary-integration.test.mjs",
     "build:extension-nlp": "node scripts/build-extension-nlp.mjs",
-    "test:nlp": "node scripts/run-nlp-test.mjs"
+    "test:nlp": "node scripts/run-nlp-test.mjs",
+    "test:server": "tsx tests/server-api.test.ts",
+    "test:cache": "node tests/translation-cache.test.mjs",
+    "test:orchestration": "node tests/orchestration.test.mjs",
+    "test:e2e": "tsx tests/e2e-live-pipeline.test.ts",
+    "start:backend": "tsx server/index.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
@@ -19,6 +24,7 @@
     "@vitejs/plugin-react": "^6.1.1",
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
+    "google-translate-api": "^2.3.0",
     "lucide-react": "^0.546.0",
     "motion": "^12.23.24",
     "react": "^19.0.1",
