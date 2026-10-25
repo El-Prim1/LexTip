@@ -12,7 +12,9 @@
   const CONFIG = {
     DEBOUNCE_MS: 150,
     VIEWPORT_PADDING: 12,
-    GAP: 8, // Strictly ~8px gap above/below selection
+    GAP: 8,
+    MIN_WIDTH: 220,
+    MAX_WIDTH: 480,
     HOST_TAG_ID: 'lingualens-popover-host',
     MAX_SELECTION_LENGTH: 300,
   };
@@ -39,23 +41,25 @@
     .ll-popover {
       position: fixed;
       display: flex;
-      align-items: center;
-      gap: 10px;
-      background: #0f172a;
+      flex-direction: column;
+      align-items: stretch;
+      background: #171b24;
       color: #f8fafc;
-      border: 1px solid #334155;
-      border-radius: 8px;
-      box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.6), 0 4px 6px -2px rgba(0, 0, 0, 0.4);
-      padding: 6px 10px;
+      border: 1px solid #343b49;
+      border-radius: 13px;
+      box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.45), 0 4px 6px -2px rgba(0, 0, 0, 0.3);
+      padding: 6px;
       opacity: 0;
       transform: translateY(4px) scale(0.98);
-      transition: opacity 120ms ease-out, transform 120ms ease-out;
+      transition: opacity 120ms ease-out, transform 120ms ease-out, width 120ms ease-out;
       pointer-events: none;
       user-select: text;
       font-size: 13px;
       line-height: 1.4;
-      white-space: nowrap;
-      max-width: min(480px, calc(100vw - 24px));
+      width: max-content;
+      min-width: min(${CONFIG.MIN_WIDTH}px, calc(100vw - ${CONFIG.VIEWPORT_PADDING * 2}px));
+      max-width: min(${CONFIG.MAX_WIDTH}px, calc(100vw - ${CONFIG.VIEWPORT_PADDING * 2}px));
+      max-height: calc(100vh - ${CONFIG.VIEWPORT_PADDING * 2}px);
       z-index: 2147483647;
     }
     .ll-popover.ll-visible {
@@ -63,76 +67,132 @@
       transform: translateY(0) scale(1);
       pointer-events: auto;
     }
-    .ll-translation-text {
-      font-weight: 500;
-      color: #f1f5f9;
+    .ll-header {
+      display: flex;
+      align-items: center;
+      min-width: 0;
+      gap: 8px;
+    }
+    .ll-summary {
+      display: flex;
+      align-items: center;
+      min-width: 0;
+      gap: 5px;
+      white-space: nowrap;
+      flex: 1 1 auto;
+    }
+    .ll-expanded-title {
+      display: none;
+      flex: 1 1 auto;
+      margin-left: 10px;
+      color: #8994a7;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+    .ll-summary-text {
+      min-width: 0;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
-      max-width: 320px;
+      font-weight: 500;
     }
     .ll-source {
-      color: #94a3b8;
+      color: #b4bdcc;
       font-weight: 400;
     }
     .ll-divider {
-      color: #64748b;
-      margin: 0 4px;
+      color: #788399;
+      flex: 0 0 auto;
     }
     .ll-target {
-      color: #38bdf8;
+      color: #8eb9ed;
       font-weight: 600;
     }
-    .ll-actions {
+    .ll-toggle {
       display: flex;
       align-items: center;
-      gap: 6px;
-      flex-shrink: 0;
-    }
-    .ll-explain-btn {
-      display: inline-flex;
-      align-items: center;
-      background: #4f46e5;
-      color: #ffffff;
-      border: none;
-      border-radius: 5px;
-      padding: 3px 8px;
-      font-size: 11px;
-      font-weight: 500;
-      cursor: pointer;
-      line-height: 1.3;
-      transition: background-color 100ms ease;
-      white-space: nowrap;
-    }
-    .ll-explain-btn:hover {
-      background: #4338ca;
-    }
-    .ll-explain-btn:active {
-      background: #3730a3;
-    }
-    .ll-close-btn {
-      display: inline-flex;
-      align-items: center;
       justify-content: center;
+      flex: 0 0 32px;
+      width: 32px;
+      height: 32px;
+      border: 0;
+      border-radius: 8px;
       background: transparent;
-      border: none;
-      color: #94a3b8;
-      cursor: pointer;
-      padding: 2px 4px;
-      font-size: 15px;
+      color: #b4bdcc;
+      font: inherit;
+      font-size: 20px;
       line-height: 1;
-      border-radius: 4px;
+      cursor: pointer;
       transition: color 100ms ease, background-color 100ms ease;
     }
-    .ll-close-btn:hover {
+    .ll-toggle:hover {
       color: #ffffff;
-      background: #1e293b;
+      background: #292f3b;
+    }
+    .ll-toggle:focus-visible {
+      outline: 2px solid #8eb9ed;
+      outline-offset: 1px;
+    }
+    .ll-expanded-content {
+      display: none;
+      overflow: auto;
+      overscroll-behavior: contain;
+      min-height: 0;
+      padding: 0 10px 10px;
+      scrollbar-width: thin;
+      scrollbar-color: #4b5565 transparent;
+    }
+    .ll-popover.ll-expanded .ll-summary {
+      display: none;
+    }
+    .ll-popover.ll-expanded .ll-expanded-content {
+      display: block;
+    }
+    .ll-detail-divider {
+      height: 1px;
+      margin: 10px 0;
+      background: #343b49;
+    }
+    .ll-detail-label {
+      margin-bottom: 3px;
+      color: #8994a7;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+    .ll-detail-text {
+      color: #eef2f8;
+      font-size: 13px;
+      font-weight: 400;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+    .ll-detail-translation {
+      color: #a8c8ee;
+    }
+    .ll-popover.ll-expanded .ll-header {
+      justify-content: space-between;
+      flex: 0 0 auto;
+    }
+    .ll-popover.ll-expanded .ll-expanded-title {
+      display: block;
+    }
+    .ll-popover.ll-expanded .ll-original {
+      margin-top: 2px;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .ll-popover,
+      .ll-toggle {
+        transition: none;
+      }
     }
     .ll-arrow {
       position: absolute;
       width: 8px;
       height: 8px;
-      background: #0f172a;
+      background: #171b24;
       transform: rotate(45deg);
       pointer-events: none;
     }
@@ -143,8 +203,8 @@
     .ll-popover.ll-popover--above .ll-arrow {
       bottom: -4px;
       top: auto;
-      border-right: 1px solid #334155;
-      border-bottom: 1px solid #334155;
+      border-right: 1px solid #343b49;
+      border-bottom: 1px solid #343b49;
       border-left: none;
       border-top: none;
     }
@@ -155,8 +215,8 @@
     .ll-popover.ll-popover--below .ll-arrow {
       top: -4px;
       bottom: auto;
-      border-left: 1px solid #334155;
-      border-top: 1px solid #334155;
+      border-left: 1px solid #343b49;
+      border-top: 1px solid #343b49;
       border-right: none;
       border-bottom: none;
     }
@@ -170,6 +230,8 @@
   let debounceTimer = null;
   let mutationObserver = null;
   let lastActiveRange = null;
+  let lastSelectionRect = null;
+  let currentRequestId = 0;
 
   function initShadowHost() {
     if (hostElement && shadowRoot) return;
@@ -191,14 +253,22 @@
       template.className = 'll-popover';
       template.innerHTML = `
         <div class="ll-arrow ll-arrow-bottom" id="ll-arrow"></div>
-        <div class="ll-translation-text" id="ll-text-container">
-          <span class="ll-source" id="ll-source"></span>
-          <span class="ll-divider">—</span>
-          <span class="ll-target" id="ll-target">Translating...</span>
+        <div class="ll-header" id="ll-header">
+          <div class="ll-summary" id="ll-text-container">
+            <span class="ll-summary-text ll-source" id="ll-source"></span>
+            <span class="ll-divider">—</span>
+            <span class="ll-summary-text ll-target" id="ll-target">Translating...</span>
+          </div>
+          <div class="ll-expanded-title">Original text</div>
+          <button class="ll-toggle" id="ll-toggle" type="button" aria-expanded="false" aria-controls="ll-expanded-content" aria-label="Expand translation" title="Expand translation">⋯</button>
         </div>
-        <div class="ll-actions">
-          <button class="ll-explain-btn" id="ll-explain">Explain Nuance</button>
-          <button class="ll-close-btn" id="ll-close" aria-label="Close popover">&times;</button>
+        <div class="ll-expanded-content" id="ll-expanded-content" aria-hidden="true">
+          <div class="ll-detail-text ll-original" id="ll-original"></div>
+          <div class="ll-detail-divider" aria-hidden="true"></div>
+          <div>
+            <div class="ll-detail-label">Russian translation</div>
+            <div class="ll-detail-text ll-detail-translation" id="ll-translation"></div>
+          </div>
         </div>
       `;
 
@@ -206,14 +276,9 @@
       popoverElement = template;
       arrowElement = shadowRoot.getElementById('ll-arrow');
 
-      shadowRoot.getElementById('ll-close').addEventListener('click', (e) => {
+      shadowRoot.getElementById('ll-toggle').addEventListener('click', (e) => {
         e.stopPropagation();
-        hidePopover();
-      });
-
-      shadowRoot.getElementById('ll-explain').addEventListener('click', (e) => {
-        e.stopPropagation();
-        handleExplainTrigger();
+        togglePopover();
       });
     } catch (err) {
       console.warn('[LinguaLens] Initialization error:', err);
@@ -227,7 +292,7 @@
         sheet.replaceSync(ISOLATED_CSS);
         root.adoptedStyleSheets = [sheet];
         return;
-      } catch (e) {}
+      } catch (e) { }
     }
     try {
       const styleEl = document.createElement('style');
@@ -247,53 +312,60 @@
   function calculatePopoverPosition(rect) {
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
+    if (!popoverElement) return null;
 
-    // Actual rendered dimensions of popover
-    const popoverWidth = popoverElement ? popoverElement.offsetWidth || 260 : 260;
-    const popoverHeight = popoverElement ? popoverElement.offsetHeight || 36 : 36;
-
-    // 1. Horizontal Centering on selection
+    const popoverWidth = popoverElement.offsetWidth || CONFIG.MIN_WIDTH;
     const selectionCenterX = rect.left + rect.width / 2;
     const idealLeft = selectionCenterX - popoverWidth / 2;
-
-    // Clamp horizontally to stay within viewport
     const minLeft = CONFIG.VIEWPORT_PADDING;
-    const maxLeft = viewportWidth - popoverWidth - CONFIG.VIEWPORT_PADDING;
+    const maxLeft = Math.max(minLeft, viewportWidth - popoverWidth - CONFIG.VIEWPORT_PADDING);
     const clampedLeft = Math.max(minLeft, Math.min(maxLeft, idealLeft));
+    const arrowX = Math.max(18, Math.min(popoverWidth - 18, selectionCenterX - clampedLeft));
 
-    // Arrow relative to popover box
-    const arrowX = Math.max(12, Math.min(popoverWidth - 12, selectionCenterX - clampedLeft));
+    const spaceAbove = Math.max(0, rect.top - CONFIG.GAP - CONFIG.VIEWPORT_PADDING);
+    const spaceBelow = Math.max(0, viewportHeight - rect.bottom - CONFIG.GAP - CONFIG.VIEWPORT_PADDING);
+    const header = shadowRoot.getElementById('ll-header');
+    const content = shadowRoot.getElementById('ll-expanded-content');
+    const expanded = popoverElement.classList.contains('ll-expanded');
+    const desiredHeight = expanded
+      ? (header ? header.offsetHeight : 0) + (content ? content.scrollHeight : 0) + 20
+      : popoverElement.scrollHeight;
 
-    // 2. Vertical Placement & Boundary Flipping Logic
-    // Space available between selection top and viewport top
-    const spaceAbove = rect.top;
-    const neededAbove = popoverHeight + CONFIG.GAP + CONFIG.VIEWPORT_PADDING;
-
-    let finalTop;
-    let arrowClass;
-    let isFlipped = false;
-
-    if (spaceAbove >= neededAbove) {
-      // Room available: strictly 8px ABOVE selection -> arrow at bottom pointing down
-      finalTop = rect.top - popoverHeight - CONFIG.GAP;
-      arrowClass = 'll-arrow-bottom';
+    let isFlipped;
+    if (spaceAbove >= desiredHeight) {
       isFlipped = false;
-    } else {
-      // Near top of viewport: FLIP below selection by strictly 8px -> arrow at top pointing up
-      finalTop = rect.bottom + CONFIG.GAP;
-      arrowClass = 'll-arrow-top';
+    } else if (spaceBelow >= desiredHeight) {
       isFlipped = true;
+    } else {
+      isFlipped = spaceBelow > spaceAbove;
     }
 
-    // Clamp vertically within screen
-    finalTop = Math.max(CONFIG.VIEWPORT_PADDING, Math.min(viewportHeight - popoverHeight - CONFIG.VIEWPORT_PADDING, finalTop));
+    const availableHeight = isFlipped ? spaceBelow : spaceAbove;
+    if (expanded) {
+      popoverElement.style.maxHeight = `${Math.max(48, availableHeight)}px`;
+      if (content) {
+        content.style.maxHeight = `${Math.max(0, availableHeight - (header ? header.offsetHeight : 0) - 20)}px`;
+      }
+    } else {
+      popoverElement.style.maxHeight = `calc(100vh - ${CONFIG.VIEWPORT_PADDING * 2}px)`;
+      if (content) content.style.maxHeight = '';
+    }
+
+    const popoverHeight = popoverElement.offsetHeight || 36;
+    const idealTop = isFlipped
+      ? rect.bottom + CONFIG.GAP
+      : rect.top - popoverHeight - CONFIG.GAP;
+    const finalTop = Math.max(
+      CONFIG.VIEWPORT_PADDING,
+      Math.min(viewportHeight - popoverHeight - CONFIG.VIEWPORT_PADDING, idealTop)
+    );
 
     return {
       top: Math.round(finalTop),
       left: Math.round(clampedLeft),
       arrowX: Math.round(arrowX),
-      arrowClass: arrowClass,
-      isFlipped: isFlipped,
+      arrowClass: isFlipped ? 'll-arrow-top' : 'll-arrow-bottom',
+      isFlipped,
     };
   }
 
@@ -313,7 +385,7 @@
 
     if (arrowElement) {
       arrowElement.className = `ll-arrow ${coords.arrowClass}`;
-      arrowElement.style.left = `${coords.arrowX}px`;
+      arrowElement.style.left = `${coords.arrowX - 4}px`;
       if (coords.isFlipped) {
         arrowElement.style.top = '-4px';
         arrowElement.style.bottom = 'auto';
@@ -324,26 +396,44 @@
     }
   }
 
-  function showPopover(rect, text) {
+  function showPopover(rect, text, requestText = text.trim()) {
     if (!popoverElement) initShadowHost();
     if (!popoverElement) return;
 
     currentSelectionText = text;
+    lastSelectionRect = rect;
+    currentRequestId += 1;
+    popoverElement.classList.remove('ll-expanded');
+    popoverElement.style.width = '';
+    popoverElement.style.maxHeight = `calc(100vh - ${CONFIG.VIEWPORT_PADDING * 2}px)`;
+
+    const toggle = shadowRoot.getElementById('ll-toggle');
+    const expandedContent = shadowRoot.getElementById('ll-expanded-content');
+    if (toggle) {
+      toggle.setAttribute('aria-expanded', 'false');
+      toggle.setAttribute('aria-label', 'Expand translation');
+      toggle.title = 'Expand translation';
+    }
+    if (expandedContent) {
+      expandedContent.setAttribute('aria-hidden', 'true');
+      expandedContent.style.maxHeight = '';
+    }
 
     const sourceEl = shadowRoot.getElementById('ll-source');
     const targetEl = shadowRoot.getElementById('ll-target');
+    const originalEl = shadowRoot.getElementById('ll-original');
+    const translationEl = shadowRoot.getElementById('ll-translation');
 
-    if (sourceEl) sourceEl.textContent = `${text} (${text})`;
-    if (targetEl) targetEl.textContent = '...';
+    if (sourceEl) sourceEl.textContent = text;
+    if (targetEl) targetEl.textContent = '…';
+    if (originalEl) originalEl.textContent = text;
+    if (translationEl) translationEl.textContent = '…';
 
-    // Make visible to measure true DOM dimensions
     popoverElement.classList.add('ll-visible');
-
-    // Compute fixed viewport coordinates and apply position & modifier classes
     const coords = calculatePopoverPosition(rect);
-    applyPopoverPosition(coords);
+    if (coords) applyPopoverPosition(coords);
 
-    dispatchTranslationRequest(text);
+    dispatchTranslationRequest(requestText, currentRequestId);
   }
 
   function hidePopover() {
@@ -353,11 +443,11 @@
     currentSelectionText = '';
   }
 
-  function dispatchTranslationRequest(text) {
+  function dispatchTranslationRequest(text, requestId) {
     let resolved = false;
 
     const applyFallback = () => {
-      if (resolved || !shadowRoot) return;
+      if (resolved || !shadowRoot || requestId !== currentRequestId) return;
       resolved = true;
       updatePopoverContent({
         translation: 'Translation not found',
@@ -381,6 +471,7 @@
               applyFallback();
               return;
             }
+            if (requestId !== currentRequestId) return;
             resolved = true;
             updatePopoverContent(response.data);
           }
@@ -398,62 +489,62 @@
   function updatePopoverContent(data) {
     if (!shadowRoot) return;
     const sourceEl = shadowRoot.getElementById('ll-source');
-    const dividerEl = shadowRoot.querySelector('.ll-divider');
     const targetEl = shadowRoot.getElementById('ll-target');
-
-    const lemma = (data && (data.lemma || data.selectedWord)) || currentSelectionText || '';
-    const rawSelected = (data && (data.selectedWord || data.lemma)) || currentSelectionText || '';
-    
-    const cleanLemma = lemma.trim().toLowerCase().replace(/^[\s"'`“‘«„\[\(\{<>\.,;:!?\-_—–#*~]+/, '').replace(/[\s"'`”’»“\]\)\}<>\.,;:!?\-_—–#*~]+$/, '');
-    const cleanSelected = rawSelected.trim().toLowerCase().replace(/^[\s"'`“‘«„\[\(\{<>\.,;:!?\-_—–#*~]+/, '').replace(/[\s"'`”’»“\]\)\}<>\.,;:!?\-_—–#*~]+$/, '');
-    const selectedWord = cleanSelected;
+    const originalEl = shadowRoot.getElementById('ll-original');
+    const translationEl = shadowRoot.getElementById('ll-translation');
 
     const targetTranslation =
       !data || !data.translation || data.translation.trim().toLowerCase() === 'translation not found'
         ? 'Translation not found'
         : data.translation;
 
-    if (dividerEl) dividerEl.style.display = 'inline';
+    if (sourceEl) sourceEl.textContent = currentSelectionText;
+    if (targetEl) targetEl.textContent = targetTranslation;
+    if (originalEl) originalEl.textContent = currentSelectionText;
+    if (translationEl) translationEl.textContent = targetTranslation;
 
-    if (sourceEl) {
-      if (cleanLemma === cleanSelected || !cleanLemma || !cleanSelected) {
-        sourceEl.textContent = selectedWord || lemma;
-      } else {
-        sourceEl.textContent = `${cleanLemma} (${cleanSelected})`;
-      }
-    }
-
-    if (targetEl) {
-      targetEl.textContent = targetTranslation;
-    }
-
-
-    // Re-anchor when content width updates
-    if (lastActiveRange && popoverElement) {
+    if (popoverElement && (lastActiveRange || lastSelectionRect)) {
       try {
-        const rect = lastActiveRange.getBoundingClientRect();
+        const rect = lastActiveRange ? lastActiveRange.getBoundingClientRect() : lastSelectionRect;
+        lastSelectionRect = rect;
         const coords = calculatePopoverPosition(rect);
-        applyPopoverPosition(coords);
-      } catch (e) {}
+        if (coords) applyPopoverPosition(coords);
+      } catch (error) {
+        console.warn('[LinguaLens] Could not reposition popup after translation:', error);
+      }
     }
   }
 
-  function handleExplainTrigger() {
-    if (!currentSelectionText) return;
-    const targetEl = shadowRoot ? shadowRoot.getElementById('ll-target') : null;
-    if (targetEl) targetEl.textContent = 'Analyzing...';
+  function togglePopover() {
+    if (!popoverElement || !shadowRoot) return;
+    const expanded = !popoverElement.classList.contains('ll-expanded');
+    const toggle = shadowRoot.getElementById('ll-toggle');
+    const expandedContent = shadowRoot.getElementById('ll-expanded-content');
 
-    if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
-      chrome.runtime.sendMessage({
-        type: 'AI_EXPLAIN_REQUEST',
-        payload: { text: currentSelectionText },
-      });
+    if (expanded) {
+      popoverElement.style.width = `${popoverElement.offsetWidth}px`;
+      popoverElement.classList.add('ll-expanded');
     } else {
-      window.dispatchEvent(
-        new CustomEvent('lingualens:ai_explain_request', {
-          detail: { text: currentSelectionText },
-        })
-      );
+      popoverElement.classList.remove('ll-expanded');
+      popoverElement.style.width = '';
+    }
+
+    if (toggle) {
+      toggle.setAttribute('aria-expanded', String(expanded));
+      toggle.setAttribute('aria-label', expanded ? 'Collapse translation' : 'Expand translation');
+      toggle.title = expanded ? 'Collapse translation' : 'Expand translation';
+    }
+    if (expandedContent) expandedContent.setAttribute('aria-hidden', String(!expanded));
+
+    if (lastActiveRange || lastSelectionRect) {
+      try {
+        const rect = lastActiveRange ? lastActiveRange.getBoundingClientRect() : lastSelectionRect;
+        lastSelectionRect = rect;
+        const coords = calculatePopoverPosition(rect);
+        if (coords) applyPopoverPosition(coords);
+      } catch (error) {
+        console.warn('[LinguaLens] Could not reposition popup after toggling:', error);
+      }
     }
   }
 
@@ -467,7 +558,8 @@
         return;
       }
 
-      const text = selection.toString().trim();
+      const selectedText = selection.toString();
+      const text = selectedText.trim();
       if (!text || text.length > CONFIG.MAX_SELECTION_LENGTH) {
         return;
       }
@@ -488,7 +580,7 @@
       if (rect.width === 0 && rect.height === 0) return;
 
       lastActiveRange = range;
-      showPopover(rect, text);
+      showPopover(rect, selectedText, text);
     }, CONFIG.DEBOUNCE_MS);
   }
 
@@ -539,14 +631,33 @@
         if (!popoverElement || !popoverElement.classList.contains('ll-visible') || !lastActiveRange) return;
         try {
           const rect = lastActiveRange.getBoundingClientRect();
+          lastSelectionRect = rect;
           // If scrolled entirely off screen, hide
           if (rect.bottom < 0 || rect.top > window.innerHeight) {
             hidePopover();
           } else {
             const coords = calculatePopoverPosition(rect);
-            applyPopoverPosition(coords);
+            if (coords) applyPopoverPosition(coords);
           }
-        } catch (e) {
+        } catch (error) {
+          console.warn('[LinguaLens] Could not reposition popup after scrolling:', error);
+          hidePopover();
+        }
+      },
+      { passive: true }
+    );
+
+    window.addEventListener(
+      'resize',
+      () => {
+        if (!popoverElement || !popoverElement.classList.contains('ll-visible') || !lastActiveRange) return;
+        try {
+          const rect = lastActiveRange.getBoundingClientRect();
+          lastSelectionRect = rect;
+          const coords = calculatePopoverPosition(rect);
+          if (coords) applyPopoverPosition(coords);
+        } catch (error) {
+          console.warn('[LinguaLens] Could not reposition popup after resizing:', error);
           hidePopover();
         }
       },

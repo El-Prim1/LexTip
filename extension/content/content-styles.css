@@ -1,8 +1,3 @@
-/* ==========================================================================
-   LinguaLens Minimal Popover Styles (Closed Shadow DOM)
-   Position: Fixed architecture for pixel-perfect viewport anchoring.
-   ========================================================================== */
-
 :host {
   all: initial;
   position: fixed;
@@ -11,7 +6,7 @@
   width: 0;
   height: 0;
   overflow: visible;
-  z-index: 2147483647; /* Maximum 32-bit z-index */
+  z-index: 2147483647;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   pointer-events: none;
@@ -23,162 +18,198 @@
   padding: 0;
 }
 
-/* Minimal Popover Container (Fixed Viewport Positioning) */
 .ll-popover {
   position: fixed;
   display: flex;
-  align-items: center;
-  gap: 10px;
-  background: #0f172a; /* Deep slate */
+  flex-direction: column;
+  align-items: stretch;
+  padding: 6px;
+  max-width: min(480px, calc(100vw - 24px));
+  max-height: calc(100vh - 24px);
+  border: 1px solid #343b49;
+  border-radius: 13px;
+  background: #171b24;
+  box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.45), 0 4px 6px -2px rgba(0, 0, 0, 0.3);
   color: #f8fafc;
-  border: 1px solid #334155;
-  border-radius: 8px;
-  box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.6), 0 4px 6px -2px rgba(0, 0, 0, 0.4);
-  padding: 6px 10px;
-  opacity: 0;
-  transform: translateY(4px) scale(0.98);
-  transition: opacity 120ms ease-out, transform 120ms ease-out;
-  pointer-events: none;
-  user-select: text;
   font-size: 13px;
   line-height: 1.4;
-  white-space: nowrap;
-  max-width: min(480px, calc(100vw - 24px));
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(4px) scale(0.98);
+  transition: opacity 120ms ease-out, transform 120ms ease-out, width 120ms ease-out;
+  user-select: text;
+  width: max-content;
+  min-width: min(220px, calc(100vw - 24px));
   z-index: 2147483647;
 }
 
 .ll-popover.ll-visible {
   opacity: 1;
-  transform: translateY(0) scale(1);
   pointer-events: auto;
+  transform: translateY(0) scale(1);
 }
 
-/* Translation Text: "word — translation" */
-.ll-translation-text {
-  font-weight: 500;
-  color: #f1f5f9;
+.ll-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.ll-summary {
+  display: flex;
+  align-items: center;
+  flex: 1 1 auto;
+  gap: 5px;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.ll-expanded-title {
+  display: none;
+  flex: 1 1 auto;
+  margin-left: 10px;
+  color: #8994a7;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.ll-summary-text {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 320px;
+  font-weight: 500;
 }
 
 .ll-source {
-  color: #94a3b8;
+  color: #b4bdcc;
   font-weight: 400;
 }
 
 .ll-divider {
-  color: #64748b;
-  margin: 0 4px;
+  flex: 0 0 auto;
+  color: #788399;
 }
 
 .ll-target {
-  color: #38bdf8; /* Cyan accent */
+  color: #8eb9ed;
   font-weight: 600;
 }
 
-/* Actions */
-.ll-actions {
+.ll-toggle {
   display: flex;
   align-items: center;
-  gap: 6px;
-  flex-shrink: 0;
-}
-
-/* Explain Nuance Button */
-.ll-explain-btn {
-  display: inline-flex;
-  align-items: center;
-  background: #4f46e5; /* Indigo */
-  color: #ffffff;
-  border: none;
-  border-radius: 5px;
-  padding: 3px 8px;
-  font-size: 11px;
-  font-weight: 500;
-  cursor: pointer;
-  line-height: 1.3;
-  transition: background-color 100ms ease;
-  white-space: nowrap;
-}
-
-.ll-explain-btn:hover {
-  background: #4338ca;
-}
-
-.ll-explain-btn:active {
-  background: #3730a3;
-}
-
-/* Close "X" Button */
-.ll-close-btn {
-  display: inline-flex;
-  align-items: center;
   justify-content: center;
+  flex: 0 0 32px;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 8px;
   background: transparent;
-  border: none;
-  color: #94a3b8;
-  cursor: pointer;
-  padding: 2px 4px;
-  font-size: 15px;
+  color: #b4bdcc;
+  font: inherit;
+  font-size: 20px;
   line-height: 1;
-  border-radius: 4px;
+  cursor: pointer;
   transition: color 100ms ease, background-color 100ms ease;
 }
 
-.ll-close-btn:hover {
+.ll-toggle:hover {
+  background: #292f3b;
   color: #ffffff;
-  background: #1e293b;
 }
 
-/* Anchoring Arrow Tail */
+.ll-toggle:focus-visible {
+  outline: 2px solid #8eb9ed;
+  outline-offset: 1px;
+}
+
+.ll-expanded-content {
+  display: none;
+  overflow: auto;
+  overscroll-behavior: contain;
+  min-height: 0;
+  padding: 0 10px 10px;
+  scrollbar-width: thin;
+  scrollbar-color: #4b5565 transparent;
+}
+
+.ll-popover.ll-expanded .ll-summary {
+  display: none;
+}
+
+.ll-popover.ll-expanded .ll-expanded-content {
+  display: block;
+}
+
+.ll-popover.ll-expanded .ll-header {
+  justify-content: space-between;
+  flex: 0 0 auto;
+}
+
+.ll-popover.ll-expanded .ll-expanded-title {
+  display: block;
+}
+
+.ll-popover.ll-expanded .ll-original {
+  margin-top: 2px;
+}
+
+.ll-detail-divider {
+  height: 1px;
+  margin: 10px 0;
+  background: #343b49;
+}
+
+.ll-detail-label {
+  margin-bottom: 3px;
+  color: #8994a7;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.ll-detail-text {
+  color: #eef2f8;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.ll-detail-translation {
+  color: #a8c8ee;
+}
+
 .ll-arrow {
   position: absolute;
   width: 8px;
   height: 8px;
-  background: #0f172a;
-  transform: rotate(45deg);
+  background: #171b24;
   pointer-events: none;
+  transform: rotate(45deg);
 }
 
-<<<<<<< HEAD
-/* Arrow positioned at bottom pointing down (popup rendered above word) */
-.ll-arrow-bottom,
-.ll-popover.popup--above .ll-arrow,
-.ll-popover.popup--bottom-arrow .ll-arrow,
-.ll-popover.ll-popover--above .ll-arrow {
-  bottom: -4px;
-  top: auto;
-  border-right: 1px solid #334155;
-  border-bottom: 1px solid #334155;
-  border-left: none;
-  border-top: none;
-}
-
-/* Arrow positioned at top pointing up (popup rendered below word) */
-.ll-arrow-top,
-.ll-popover.popup--below .ll-arrow,
-.ll-popover.popup--top-arrow .ll-arrow,
-.ll-popover.ll-popover--below .ll-arrow {
-  top: -4px;
-  bottom: auto;
-  border-left: 1px solid #334155;
-  border-top: 1px solid #334155;
-  border-right: none;
-  border-bottom: none;
-}
-
-=======
 .ll-arrow-bottom {
+  top: auto;
   bottom: -4px;
-  border-right: 1px solid #334155;
-  border-bottom: 1px solid #334155;
+  border-right: 1px solid #343b49;
+  border-bottom: 1px solid #343b49;
 }
 
 .ll-arrow-top {
   top: -4px;
-  border-left: 1px solid #334155;
-  border-top: 1px solid #334155;
+  bottom: auto;
+  border-top: 1px solid #343b49;
+  border-left: 1px solid #343b49;
 }
->>>>>>> 216ab7acc97ba37dd67d4a6ea5df66b9c601d669
+
+@media (prefers-reduced-motion: reduce) {
+  .ll-popover,
+  .ll-toggle {
+    transition: none;
+  }
+}
