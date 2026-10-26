@@ -9,6 +9,8 @@
 // Import required background scripts
 importScripts('nlp-runtime.js', 'dictionary-service.js', 'config.js', 'translation-cache.js');
 
+const DEFAULT_TARGET_LANGUAGE = 'ru';
+
 // Ephemeral deduplication map for in-flight translation requests
 const inFlightRequests = new Map();
 
@@ -37,6 +39,8 @@ async function handleTranslation(text) {
       const latencyMs = Math.max(0.1, Number((performance.now() - startTime).toFixed(2)));
       return {
         translation: dictResult.translation,
+        sourceLanguage: dictResult.sourceLanguage || null,
+        targetLanguage: dictResult.targetLanguage || DEFAULT_TARGET_LANGUAGE,
         lemma: dictResult.lemma,
         selectedWord: dictResult.selectedWord,
         partOfSpeech: dictResult.partOfSpeech,
@@ -56,6 +60,8 @@ async function handleTranslation(text) {
       const latencyMs = Math.max(0.1, Number((performance.now() - startTime).toFixed(2)));
       return {
         translation: cached.translatedText,
+        sourceLanguage: cached.sourceLanguage || null,
+        targetLanguage: cached.targetLanguage || DEFAULT_TARGET_LANGUAGE,
         lemma: trimmed,
         selectedWord: trimmed,
         partOfSpeech: null,
@@ -93,11 +99,15 @@ async function handleTranslation(text) {
         // Save successfully translated text into Layer 2 cache
         await setCachedTranslation(trimmed, {
           translatedText: json.translatedText,
+          sourceLanguage: json.sourceLanguage || null,
+          targetLanguage: json.targetLanguage || DEFAULT_TARGET_LANGUAGE,
           layer: 3,
         });
 
         return {
           translation: json.translatedText,
+          sourceLanguage: json.sourceLanguage || null,
+          targetLanguage: json.targetLanguage || DEFAULT_TARGET_LANGUAGE,
           lemma: trimmed,
           selectedWord: trimmed,
           partOfSpeech: null,
@@ -115,6 +125,8 @@ async function handleTranslation(text) {
   const fallbackLatency = Math.max(0.1, Number((performance.now() - startTime).toFixed(2)));
   return {
     translation: 'Translation not found',
+    sourceLanguage: null,
+    targetLanguage: DEFAULT_TARGET_LANGUAGE,
     lemma: trimmed,
     selectedWord: trimmed,
     partOfSpeech: null,
@@ -134,6 +146,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         success: true,
         data: {
           translation: 'Translation not found',
+          sourceLanguage: null,
+          targetLanguage: DEFAULT_TARGET_LANGUAGE,
           lemma: '',
           selectedWord: '',
           partOfSpeech: null,
@@ -157,6 +171,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           error: err.message,
           data: {
             translation: 'Translation not found',
+            sourceLanguage: null,
+            targetLanguage: DEFAULT_TARGET_LANGUAGE,
             lemma: text,
             selectedWord: text,
             partOfSpeech: null,
@@ -182,6 +198,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           success: true,
           data: {
             translation: 'Translation not found',
+            sourceLanguage: null,
+            targetLanguage: DEFAULT_TARGET_LANGUAGE,
             lemma: text,
             selectedWord: text,
             partOfSpeech: null,

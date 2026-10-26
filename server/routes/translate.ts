@@ -18,7 +18,11 @@ translateRouter.post('/translate', async (req: Request, res: Response): Promise<
 
   try {
     const result = await translateText(text.trim());
-    res.status(200).json({ translatedText: result.translatedText });
+    res.status(200).json({
+      translatedText: result.translatedText,
+      sourceLanguage: result.sourceLanguage,
+      targetLanguage: result.targetLanguage,
+    });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Translation processing failed';
     if (message.includes('timed out')) {

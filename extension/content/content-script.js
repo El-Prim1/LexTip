@@ -57,7 +57,7 @@
       font-size: 13px;
       line-height: 1.4;
       width: max-content;
-      min-width: min(${CONFIG.MIN_WIDTH}px, calc(100vw - ${CONFIG.VIEWPORT_PADDING * 2}px));
+      min-width: calc(100vw - ${CONFIG.VIEWPORT_PADDING * 2}px));
       max-width: min(${CONFIG.MAX_WIDTH}px, calc(100vw - ${CONFIG.VIEWPORT_PADDING * 2}px));
       max-height: calc(100vh - ${CONFIG.VIEWPORT_PADDING * 2}px);
       z-index: 2147483647;
@@ -71,7 +71,7 @@
       display: flex;
       align-items: center;
       min-width: 0;
-      gap: 8px;
+      gap: 5px;
     }
     .ll-summary {
       display: flex;
@@ -259,14 +259,14 @@
             <span class="ll-divider">—</span>
             <span class="ll-summary-text ll-target" id="ll-target">Translating...</span>
           </div>
-          <div class="ll-expanded-title">Original text</div>
+          <div class="ll-expanded-title" id="ll-source-label">Source language</div>
           <button class="ll-toggle" id="ll-toggle" type="button" aria-expanded="false" aria-controls="ll-expanded-content" aria-label="Expand translation" title="Expand translation">⋯</button>
         </div>
         <div class="ll-expanded-content" id="ll-expanded-content" aria-hidden="true">
           <div class="ll-detail-text ll-original" id="ll-original"></div>
           <div class="ll-detail-divider" aria-hidden="true"></div>
           <div>
-            <div class="ll-detail-label">Russian translation</div>
+            <div class="ll-detail-label" id="ll-target-label">Russian</div>
             <div class="ll-detail-text ll-detail-translation" id="ll-translation"></div>
           </div>
         </div>
@@ -423,11 +423,15 @@
     const targetEl = shadowRoot.getElementById('ll-target');
     const originalEl = shadowRoot.getElementById('ll-original');
     const translationEl = shadowRoot.getElementById('ll-translation');
+    const sourceLabelEl = shadowRoot.getElementById('ll-source-label');
+    const targetLabelEl = shadowRoot.getElementById('ll-target-label');
 
     if (sourceEl) sourceEl.textContent = text;
     if (targetEl) targetEl.textContent = '…';
     if (originalEl) originalEl.textContent = text;
     if (translationEl) translationEl.textContent = '…';
+    if (sourceLabelEl) sourceLabelEl.textContent = 'Source language';
+    if (targetLabelEl) targetLabelEl.textContent = 'Russian';
 
     popoverElement.classList.add('ll-visible');
     const coords = calculatePopoverPosition(rect);
@@ -441,6 +445,24 @@
       popoverElement.classList.remove('ll-visible');
     }
     currentSelectionText = '';
+  }
+
+  function getLanguageName(languageCode) {
+    if (typeof languageCode !== 'string') return null;
+    const normalizedCode = languageCode.trim().replace(/_/g, '-');
+    if (!/^[a-z]{2,3}(?:-[a-z0-9]{2,8})*$/i.test(normalizedCode) || normalizedCode.toLowerCase() === 'und') {
+      return null;
+    }
+
+    try {
+      const languageName = new Intl.DisplayNames(['en'], { type: 'language' }).of(normalizedCode);
+      return languageName && languageName.toLowerCase() !== 'unknown language'
+        ? languageName
+        : null;
+    } catch (error) {
+      if (error instanceof RangeError) return null;
+      throw error;
+    }
   }
 
   function dispatchTranslationRequest(text, requestId) {
@@ -492,6 +514,8 @@
     const targetEl = shadowRoot.getElementById('ll-target');
     const originalEl = shadowRoot.getElementById('ll-original');
     const translationEl = shadowRoot.getElementById('ll-translation');
+    const sourceLabelEl = shadowRoot.getElementById('ll-source-label');
+    const targetLabelEl = shadowRoot.getElementById('ll-target-label');
 
     const targetTranslation =
       !data || !data.translation || data.translation.trim().toLowerCase() === 'translation not found'
@@ -502,6 +526,8 @@
     if (targetEl) targetEl.textContent = targetTranslation;
     if (originalEl) originalEl.textContent = currentSelectionText;
     if (translationEl) translationEl.textContent = targetTranslation;
+    if (sourceLabelEl) sourceLabelEl.textContent = getLanguageName(data && data.sourceLanguage) || 'Source language';
+    if (targetLabelEl) targetLabelEl.textContent = getLanguageName(data && data.targetLanguage) || 'Russian';
 
     if (popoverElement && (lastActiveRange || lastSelectionRect)) {
       try {
