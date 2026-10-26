@@ -1,20 +1,17 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# LexTip
 
-# Run and deploy your AI Studio app
+LexTip is a Chromium browser extension and companion web app for looking up selected text with an English-Russian dictionary and linguistic analysis.
 
-This contains everything you need to run your app locally.
+## Project overview
 
-View your app in AI Studio: https://ai.studio/apps/295ebf95-7764-4cab-ac73-87352c182b06
+- The extension uses a local dictionary and NLP-based lemmatization to resolve word forms.
+- The improved popup layout presents lookup results in a compact, expandable view.
+- The Vite and React web interface provides the companion app and testbench.
 
-## Run Locally
+## Run locally
 
-**Prerequisites:**  Node.js
+1. Install dependencies with `npm install`.
+2. Set `GEMINI_API_KEY` in `.env.local` when using Gemini-backed app features.
+3. Start the app with `npm run dev`.
 
-
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+The browser extension is in `extension/`, and the web interface is in `src/`.

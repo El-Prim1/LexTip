@@ -568,7 +568,7 @@ function calculatePopoverPosition(rect) {
 
     'manifest.json': `{
   "manifest_version": 3,
-  "name": "LinguaLens - 3-Layer AI Translator",
+  "name": "LexTip - 3-Layer AI Translator",
   "version": "1.0.0",
   "description": "Instant 3-layer text translation & linguistic analysis with isolated Shadow DOM.",
   "permissions": [
@@ -789,7 +789,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           </div>
           <div>
             <h1 className="text-base font-bold tracking-tight text-white flex items-center gap-2">
-              LinguaLens
+              LexTip
               <span className="text-xs px-2 py-0.5 rounded font-mono text-cyan-400 bg-cyan-950/80 border border-cyan-800/60">
                 Fixed Positioning Engine
               </span>
@@ -1213,7 +1213,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       {/* Global Fixed Shadow Host Anchor */}
       <div
         ref={shadowHostRef}
-        id="lingualens-popover-host"
+        id="lextip-popover-host"
         style={{
           position: 'fixed',
           top: 0,

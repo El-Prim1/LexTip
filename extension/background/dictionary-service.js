@@ -1,5 +1,5 @@
 /**
- * LinguaLens - Extension Dictionary Service
+ * LexTip - Extension Dictionary Service
  *
  * This is the extension-runtime equivalent of src/dictionary-service.ts.
  * It adapts the legacy JSON at load time and builds grouped indexes once.
@@ -10,7 +10,7 @@ let dictionaryEntries = [];
 let byLemma = new Map();
 let byPhrase = new Map();
 let skippedRecords = 0;
-const nlpRuntime = typeof globalThis !== 'undefined' ? globalThis.LinguaLensNLP : null;
+const nlpRuntime = typeof globalThis !== 'undefined' ? globalThis.LexTipNLP : null;
 
 function normalizeText(text) {
   if (text === null || text === undefined) return '';

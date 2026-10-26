@@ -1,5 +1,5 @@
 /**
- * LinguaLens - Background Service Worker (Manifest v3)
+ * LexTip - Background Service Worker (Manifest v3)
  * Integrates English-Russian dictionary with lemmatization pipeline
  */
 
@@ -8,7 +8,7 @@ importScripts('nlp-runtime.js', 'dictionary-service.js');
 
 // Installation Lifecycle Listener
 chrome.runtime.onInstalled.addListener(() => {
-  console.log('[LinguaLens] Extension installed / updated.');
+  console.log('[LexTip] Extension installed / updated.');
   // Pre-load dictionary on installation
   loadDictionary();
 });
@@ -69,7 +69,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         });
       }
     }).catch((error) => {
-      console.error('[LinguaLens] Dictionary lookup error:', error);
+      console.error('[LexTip] Dictionary lookup error:', error);
       sendResponse({
         success: true,
         data: {

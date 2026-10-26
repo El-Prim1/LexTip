@@ -14,7 +14,7 @@ function assert(condition, testName, details = '') {
   }
 }
 
-console.log('--- LinguaLens Phase 1 Verification Suite ---\n');
+console.log('--- LexTip Phase 1 Verification Suite ---\n');
 
 // 1. Manifest v3 Validation
 const manifestPath = path.resolve('extension/manifest.json');
