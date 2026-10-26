@@ -1,21 +1,20 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# LexTip
 
-# Run and deploy your AI Studio app
+LexTip is a private browser-translation project focused on making selected text easy to understand without interrupting the page. Its Chromium extension translates text into Russian and presents the result in a compact, expandable popup.
 
-This contains everything you need to run your app locally.
+## Project overview
 
-View your app in AI Studio: https://ai.studio/apps/295ebf95-7764-4cab-ac73-87352c182b06
+- **In-page translation:** Selecting text opens an isolated popup showing the original text, its translation, and readable source and target language names when available.
+- **Three-layer translation pipeline:** The extension checks its local dictionary first, then its browser translation cache, and finally requests a translation from the backend.
+- **Language processing:** Local dictionary lookup uses normalization and NLP-based lemmatization to improve word-form matching.
+- **Translation backend:** An Express API provides translation and detected-language metadata to the extension.
+- **Web interface:** A Vite and React interface provides a companion translation experience and project testbench.
 
-## Run Locally
+## High-level architecture
 
-**Prerequisites:**  Node.js
+1. The **extension content script** detects selected text and displays the popup in an isolated Shadow DOM.
+2. The **extension service worker** coordinates dictionary lookup, cached results, and backend requests.
+3. The **backend API** translates text not resolved by the local layers and returns translation and language metadata.
+4. The **dictionary and cache** help resolve repeated or common translations without a backend request.
 
-
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
-wef
+The browser extension is located in `extension/`, the web interface in `src/`, and the translation API in `server/`.

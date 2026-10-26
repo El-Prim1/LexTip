@@ -1,5 +1,5 @@
 /**
- * LinguaLens - Layer 2 Browser Storage Cache
+ * LexTip - Layer 2 Browser Storage Cache
  * Caches translated text in chrome.storage.local with 15-day TTL and 100-entry ceiling.
  */
 
@@ -50,7 +50,7 @@ async function getCachedTranslation(text) {
 
     return entry;
   } catch (error) {
-    console.warn('[LinguaLens Cache] Error reading cache:', error);
+    console.warn('[LexTip Cache] Error reading cache:', error);
     return null;
   }
 }
@@ -97,7 +97,7 @@ async function setCachedTranslation(text, data) {
 
     await chrome.storage.local.set({ [CACHE_STORAGE_KEY]: cache });
   } catch (error) {
-    console.warn('[LinguaLens Cache] Error saving to cache:', error);
+    console.warn('[LexTip Cache] Error saving to cache:', error);
   }
 }
 
@@ -121,7 +121,7 @@ async function removeCachedTranslation(text) {
       await chrome.storage.local.set({ [CACHE_STORAGE_KEY]: cache });
     }
   } catch (error) {
-    console.warn('[LinguaLens Cache] Error removing cache entry:', error);
+    console.warn('[LexTip Cache] Error removing cache entry:', error);
   }
 }
 
@@ -147,10 +147,10 @@ async function cleanupExpiredEntries() {
 
     if (cleanedCount > 0) {
       await chrome.storage.local.set({ [CACHE_STORAGE_KEY]: cache });
-      console.log(`[LinguaLens Cache] Pruned ${cleanedCount} expired entries.`);
+      console.log(`[LexTip Cache] Pruned ${cleanedCount} expired entries.`);
     }
   } catch (error) {
-    console.warn('[LinguaLens Cache] Cleanup error:', error);
+    console.warn('[LexTip Cache] Cleanup error:', error);
   }
 }
 

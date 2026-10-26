@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "LinguaLens - 3-Layer AI Translator",
-  "version": "2.0.0",
-  "description": "Instant 3-layer text translation & linguistic analysis with isolated Shadow DOM.",
+  "name": "LexTip - 3-Layer Translator",
+  "version": "1.0.0",
+  "description": "Instant 3-layer text translation with isolated Shadow DOM.",
   "permissions": [
     "storage",
     "activeTab",
@@ -24,7 +24,7 @@
   ],
   "action": {
     "default_popup": "popup/popup.html",
-    "default_title": "LinguaLens Settings"
+    "default_title": "LexTip Settings"
   },
   "web_accessible_resources": [
     {

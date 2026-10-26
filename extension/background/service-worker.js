@@ -1,5 +1,5 @@
 /**
- * LinguaLens - Background Service Worker (Manifest v3)
+ * LexTip - Background Service Worker (Manifest v3)
  * Orchestrates 3 translation layers:
  * Layer 1: Local Dictionary + NLP Lemmatization
  * Layer 2: chrome.storage.local cache (15-day TTL, 100 entries)
@@ -16,7 +16,7 @@ const inFlightRequests = new Map();
 
 // Installation Lifecycle Listener
 chrome.runtime.onInstalled.addListener(() => {
-  console.log('[LinguaLens] Extension installed / updated.');
+  console.log('[LexTip] Extension installed / updated.');
   // Pre-load dictionary into memory
   loadDictionary();
   // Cleanup expired entries from Layer 2 cache
@@ -50,7 +50,7 @@ async function handleTranslation(text) {
       };
     }
   } catch (err) {
-    console.warn('[LinguaLens] Layer 1 lookup error:', err);
+    console.warn('[LexTip] Layer 1 lookup error:', err);
   }
 
   // Layer 2: Browser Storage Cache (chrome.storage.local)
@@ -71,7 +71,7 @@ async function handleTranslation(text) {
       };
     }
   } catch (err) {
-    console.warn('[LinguaLens] Layer 2 cache lookup error:', err);
+    console.warn('[LexTip] Layer 2 cache lookup error:', err);
   }
 
   // Layer 3: Backend API Request
@@ -118,7 +118,7 @@ async function handleTranslation(text) {
       }
     }
   } catch (err) {
-    console.warn('[LinguaLens] Layer 3 backend translation error:', err);
+    console.warn('[LexTip] Layer 3 backend translation error:', err);
   }
 
   // Fallback when all layers fail to find a translation
@@ -193,7 +193,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         sendResponse({ success: true, data });
       })
       .catch((error) => {
-        console.error('[LinguaLens] Translation pipeline failed:', error);
+        console.error('[LexTip] Translation pipeline failed:', error);
         sendResponse({
           success: true,
           data: {

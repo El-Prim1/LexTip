@@ -1,13 +1,13 @@
 /**
- * LinguaLens - Content Script
+ * LexTip - Content Script
  * Precision Viewport Positioning Engine (Fixed Coordinates + Dynamic Boundary Flipping)
  */
 
 (function () {
   'use strict';
 
-  if (window.__LINGUALENS_INITIALIZED__) return;
-  window.__LINGUALENS_INITIALIZED__ = true;
+  if (window.__LEXTIP_INITIALIZED__) return;
+  window.__LEXTIP_INITIALIZED__ = true;
 
   const CONFIG = {
     DEBOUNCE_MS: 150,
@@ -15,7 +15,7 @@
     GAP: 8,
     MIN_WIDTH: 220,
     MAX_WIDTH: 480,
-    HOST_TAG_ID: 'lingualens-popover-host',
+    HOST_TAG_ID: 'lextip-popover-host',
     MAX_SELECTION_LENGTH: 300,
   };
 
@@ -281,7 +281,7 @@
         togglePopover();
       });
     } catch (err) {
-      console.warn('[LinguaLens] Initialization error:', err);
+      console.warn('[LexTip] Initialization error:', err);
     }
   }
 
@@ -299,7 +299,7 @@
       styleEl.textContent = ISOLATED_CSS;
       root.appendChild(styleEl);
     } catch (e) {
-      console.error('[LinguaLens] Failed to inject styles:', e);
+      console.error('[LexTip] Failed to inject styles:', e);
     }
   }
 
@@ -536,7 +536,7 @@
         const coords = calculatePopoverPosition(rect);
         if (coords) applyPopoverPosition(coords);
       } catch (error) {
-        console.warn('[LinguaLens] Could not reposition popup after translation:', error);
+        console.warn('[LexTip] Could not reposition popup after translation:', error);
       }
     }
   }
@@ -569,7 +569,7 @@
         const coords = calculatePopoverPosition(rect);
         if (coords) applyPopoverPosition(coords);
       } catch (error) {
-        console.warn('[LinguaLens] Could not reposition popup after toggling:', error);
+        console.warn('[LexTip] Could not reposition popup after toggling:', error);
       }
     }
   }
@@ -595,7 +595,7 @@
 
       if (targetElement) {
         if (targetElement.tagName === 'INPUT' && targetElement.type === 'password') return;
-        if (targetElement.closest && targetElement.closest('[data-lingualens-ignore]')) return;
+        if (targetElement.closest && targetElement.closest('[data-lextip-ignore]')) return;
         if (targetElement.id === CONFIG.HOST_TAG_ID || (hostElement && hostElement.contains(targetElement))) return;
       }
 
@@ -666,7 +666,7 @@
             if (coords) applyPopoverPosition(coords);
           }
         } catch (error) {
-          console.warn('[LinguaLens] Could not reposition popup after scrolling:', error);
+          console.warn('[LexTip] Could not reposition popup after scrolling:', error);
           hidePopover();
         }
       },
@@ -683,7 +683,7 @@
           const coords = calculatePopoverPosition(rect);
           if (coords) applyPopoverPosition(coords);
         } catch (error) {
-          console.warn('[LinguaLens] Could not reposition popup after resizing:', error);
+          console.warn('[LexTip] Could not reposition popup after resizing:', error);
           hidePopover();
         }
       },
@@ -730,7 +730,7 @@
     init();
   }
 
-  window.__LINGUALENS_API__ = {
+  window.__LEXTIP_API__ = {
     showAtRect: (rect, text) => showPopover(rect, text),
     hide: () => hidePopover(),
     updateContent: (data) => updatePopoverContent(data),

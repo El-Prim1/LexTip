@@ -129,7 +129,7 @@ A browser extension (Manifest v3) that provides zero-friction, context-aware tra
 ```json
 {
   "manifest_version": 3,
-  "name": "LinguaLens - 3-Layer AI Translator",
+  "name": "LexTip - 3-Layer AI Translator",
   "version": "1.0.0",
   "permissions": ["storage", "activeTab", "scripting"],
   "host_permissions": ["https://*/*"],
