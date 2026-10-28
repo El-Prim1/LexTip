@@ -1,0 +1,25 @@
+LexTip English-Russian statistical dictionary
+
+The statistical entries in statistical-en-russian-dictionary.json are derived
+from the dataset "en-ru-statistical-dict-20m-corpus" by KvaytG:
+https://huggingface.co/datasets/KvaytG/en-ru-statistical-dict-20m-corpus
+
+Source revision: c1220e8a63b95bb94fa914160b91d6954d3b7f2c
+Source file: dictionary.parquet
+Source SHA-256:
+bb81cbbe3cb12d8cbed0400efa42ee1d44782a227aa03efe647b9a3a797dd0c8
+
+The dataset card declares Apache License 2.0. The source repository at the
+pinned revision does not include a separate LICENSE or NOTICE file. A copy of
+the Apache License 2.0 is included alongside this notice.
+
+The dataset card describes this dictionary as extracted from the separate
+"en-ru-parallel-20m" corpus. That corpus documents mixed underlying OPUS
+licenses, including non-commercial and share-alike sources. The rights and
+license implications of that derivation have not been independently cleared.
+This attribution is not a legal determination or confirmation that the source
+corpus is cleared for redistribution.
+
+The imported records are converted from Parquet to LexTip's word/translation
+JSON records. Statistical count and probability values are retained. The source
+dataset contains no part-of-speech or phrase annotations.

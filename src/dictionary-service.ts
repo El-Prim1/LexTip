@@ -4,6 +4,7 @@
  */
 
 import dictionaryData from '../extension/dictionaries/english-russian-dictionary.json';
+import statisticalDictionaryData from '../extension/dictionaries/statistical-en-russian-dictionary.json';
 import { analyzeWord, normalizeLookupKey, type WordAnalysis } from './nlp/lemmatization.js';
 import { adaptLegacyDictionary } from './dictionary/legacy-adapter.js';
 import {
@@ -11,7 +12,10 @@ import {
   type LookupResult as StructuredLookupResult,
 } from './dictionary/lookup-service.js';
 import { InMemoryDictionaryRepository, type DictionaryRepository } from './dictionary/repository.js';
-import type { DictionaryEntry } from './dictionary/model.js';
+import {
+  STATISTICAL_DICTIONARY_SOURCE,
+  type DictionaryEntry,
+} from './dictionary/model.js';
 
 export interface LookupResult {
   found: boolean;
@@ -24,11 +28,19 @@ export interface LookupResult {
 }
 
 const adaptedDictionary = adaptLegacyDictionary(dictionaryData);
-const dictionaryRepository: DictionaryRepository = new InMemoryDictionaryRepository(adaptedDictionary.entries);
+const adaptedStatisticalDictionary = adaptLegacyDictionary(statisticalDictionaryData, {
+  source: STATISTICAL_DICTIONARY_SOURCE,
+});
+const dictionaryRepository: DictionaryRepository = new InMemoryDictionaryRepository([
+  ...adaptedDictionary.entries,
+  ...adaptedStatisticalDictionary.entries,
+]);
 
 export const dictionaryLoadStats = {
-  loaded: adaptedDictionary.entries.length,
-  skipped: adaptedDictionary.skipped.length,
+  loaded: adaptedDictionary.entries.length + adaptedStatisticalDictionary.entries.length,
+  skipped: adaptedDictionary.skipped.length + adaptedStatisticalDictionary.skipped.length,
+  legacyLoaded: adaptedDictionary.entries.length,
+  statisticalLoaded: adaptedStatisticalDictionary.entries.length,
 };
 
 export function getDictionaryRepository(): DictionaryRepository {
