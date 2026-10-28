@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>LexTip MV3 local translation experiment</title>
+    <link rel="stylesheet" href="test.css">
+  </head>
+  <body>
+    <main>
+      <p class="eyebrow">LexTip · Stage 3 · MV3 extension-origin test</p>
+      <h1>Local English → Russian translation</h1>
+      <p class="model">Xenova/opus-mt-en-ru · q8 · ONNX Runtime WASM</p>
+      <label for="source-text">English text</label>
+      <textarea id="source-text" rows="3">At the end of the meeting, we agreed to postpone the launch until next week.</textarea>
+      <button id="translate" type="button">Load model &amp; translate</button>
+      <p id="status" role="status">Ready. Translation is routed through the extension service worker.</p>
+      <progress id="progress" max="100" value="0" hidden></progress>
+      <p id="error" role="alert" hidden></p>
+      <section id="result-panel" hidden>
+        <h2>Russian translation</h2>
+        <p id="result"></p>
+      </section>
+      <section class="measurements">
+        <h2>Runtime measurements</h2>
+        <dl>
+          <div><dt>Pipeline initialization</dt><dd id="initialization">Not measured</dd></div>
+          <div><dt>Inference</dt><dd id="inference">Not measured</dd></div>
+          <div><dt>Model asset bytes</dt><dd id="bytes">Not measured</dd></div>
+          <div><dt>Model asset files</dt><dd id="files">None requested yet</dd></div>
+          <div><dt>Extension origin</dt><dd id="origin"></dd></div>
+        </dl>
+      </section>
+    </main>
+    <script src="test.js"></script>
+  </body>
+</html>

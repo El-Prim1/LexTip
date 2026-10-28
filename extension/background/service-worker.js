@@ -4,7 +4,7 @@
  */
 
 // Import dictionary service
-importScripts('nlp-runtime.js', 'dictionary-service.js');
+importScripts('nlp-runtime.js', 'dictionary-service.js', 'local-translation-prototype.js');
 
 // Installation Lifecycle Listener
 chrome.runtime.onInstalled.addListener(() => {

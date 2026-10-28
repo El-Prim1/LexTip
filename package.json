@@ -11,6 +11,7 @@
     "lint": "tsc --noEmit",
     "test:dictionary": "node tests/dictionary-integration.test.mjs",
     "build:extension-nlp": "node scripts/build-extension-nlp.mjs",
+    "build:extension-translation": "node scripts/build-extension-translation.mjs",
     "test:nlp": "node scripts/run-nlp-test.mjs"
   },
   "dependencies": {
