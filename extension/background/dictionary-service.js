@@ -10,6 +10,9 @@ let dictionaryEntries = [];
 let byLemma = new Map();
 let byPhrase = new Map();
 let skippedRecords = 0;
+let legacyLoaded = 0;
+let statisticalLoaded = 0;
+const statisticalDictionarySource = 'statistical-dataset';
 const nlpRuntime = typeof globalThis !== 'undefined' ? globalThis.LexTipNLP : null;
 
 function normalizeText(text) {
@@ -37,13 +40,25 @@ function addGrouped(index, key, entry) {
   index.set(key, entries);
 }
 
-function adaptLegacyRecord(record, index) {
+function adaptLegacyRecord(record, index, source = 'legacy-json') {
   if (!record || typeof record.word !== 'string' || !record.word.trim()) return null;
   if (typeof record.translation !== 'string' || !record.translation.trim()) return null;
+  if (source === statisticalDictionarySource
+    && (!Number.isSafeInteger(record.count)
+      || record.count <= 0
+      || typeof record.probability !== 'number'
+      || !Number.isFinite(record.probability)
+      || record.probability < 0
+      || record.probability > 1)) return null;
 
   const lemma = normalizeText(record.word);
-  const entryId = `legacy-entry-${index}`;
+  const entryId = `${source === statisticalDictionarySource ? 'statistical' : 'legacy'}-entry-${index}`;
   const senseId = `${entryId}:sense-1`;
+  const translation = { id: `${senseId}:translation`, text: record.translation };
+  if (source === statisticalDictionarySource) {
+    translation.count = record.count;
+    translation.probability = record.probability;
+  }
   return {
     id: entryId,
     sourceLanguage: 'en',
@@ -53,46 +68,79 @@ function adaptLegacyRecord(record, index) {
     partOfSpeech: 'UNKNOWN',
     senses: [{
       id: senseId,
-      translations: [{ id: `${senseId}:translation`, text: record.translation }],
+      translations: [translation],
     }],
-    source: 'legacy-json',
+    source,
     verificationStatus: 'unverified',
   };
 }
 
-function buildIndexes(records) {
+function buildIndexes(legacyRecords, statisticalRecords) {
   dictionaryEntries = [];
   byLemma = new Map();
   byPhrase = new Map();
   skippedRecords = 0;
+  legacyLoaded = 0;
+  statisticalLoaded = 0;
 
-  records.forEach((record, index) => {
-    const entry = adaptLegacyRecord(record, index);
-    if (!entry) {
-      skippedRecords += 1;
-      return;
-    }
+  const addRecords = (records, source) => {
+    records.forEach((record, index) => {
+      const entry = adaptLegacyRecord(record, index, source);
+      if (!entry) {
+        skippedRecords += 1;
+        return;
+      }
 
-    dictionaryEntries.push(entry);
-    const indexTarget = entry.entryType === 'phrase' ? byPhrase : byLemma;
-    addGrouped(indexTarget, indexKey(entry.lemma, entry.sourceLanguage, entry.targetLanguage), entry);
-  });
+      dictionaryEntries.push(entry);
+      if (source === statisticalDictionarySource) statisticalLoaded += 1;
+      else legacyLoaded += 1;
+      const indexTarget = entry.entryType === 'phrase' ? byPhrase : byLemma;
+      addGrouped(indexTarget, indexKey(entry.lemma, entry.sourceLanguage, entry.targetLanguage), entry);
+    });
+  };
+
+  addRecords(legacyRecords, 'legacy-json');
+  addRecords(statisticalRecords, statisticalDictionarySource);
 }
 
 async function loadDictionary() {
   if (dictionaryLoaded) return dictionaryEntries;
 
   try {
-    const url = chrome.runtime.getURL('dictionaries/english-russian-dictionary.json');
-    const response = await fetch(url);
-    const dictionaryData = await response.json();
-    buildIndexes(Array.isArray(dictionaryData) ? dictionaryData : []);
+    const legacyUrl = chrome.runtime.getURL('dictionaries/english-russian-dictionary.json');
+    const statisticalUrl = chrome.runtime.getURL('dictionaries/statistical-en-russian-dictionary.json');
+    const legacyResponse = await fetch(legacyUrl);
+    if (!legacyResponse.ok) {
+      throw new Error(`Legacy dictionary asset request failed: HTTP ${legacyResponse.status}`);
+    }
+    const legacyData = await legacyResponse.json();
+    if (!Array.isArray(legacyData)) {
+      throw new Error('Legacy dictionary asset must contain a JSON array');
+    }
+
+    let statisticalData = [];
+    try {
+      const statisticalResponse = await fetch(statisticalUrl);
+      if (!statisticalResponse.ok) {
+        throw new Error(`HTTP ${statisticalResponse.status}`);
+      }
+      statisticalData = await statisticalResponse.json();
+      if (!Array.isArray(statisticalData)) {
+        throw new Error('Statistical dictionary asset must contain a JSON array');
+      }
+    } catch (error) {
+      console.error('[DictionaryService] Statistical dictionary unavailable; continuing with canonical data:', error);
+    }
+
+    buildIndexes(legacyData, statisticalData);
     dictionaryLoaded = true;
-    console.log(`[DictionaryService] Loaded ${dictionaryEntries.length} dictionary entries; skipped ${skippedRecords}`);
+    console.log(
+      `[DictionaryService] Loaded ${legacyLoaded} legacy and ${statisticalLoaded} statistical entries; skipped ${skippedRecords}`,
+    );
     return dictionaryEntries;
   } catch (error) {
     console.error('[DictionaryService] Failed to load dictionary:', error);
-    buildIndexes([]);
+    buildIndexes([], []);
     dictionaryLoaded = false;
     return dictionaryEntries;
   }
@@ -137,7 +185,26 @@ function deduplicateMatches(matches) {
     const previous = unique.get(match.entry.id);
     if (!previous || match.score > previous.score) unique.set(match.entry.id, match);
   });
-  return [...unique.values()].sort((left, right) => right.score - left.score);
+  return [...unique.values()].sort((left, right) => {
+    const leftImported = left.entry.source === statisticalDictionarySource;
+    const rightImported = right.entry.source === statisticalDictionarySource;
+    if (leftImported !== rightImported) return leftImported ? 1 : -1;
+    if (left.score !== right.score) return right.score - left.score;
+
+    if (leftImported && rightImported) {
+      const leftTranslation = left.entry.senses[0]?.translations[0];
+      const rightTranslation = right.entry.senses[0]?.translations[0];
+      const probabilityDifference = rightTranslation.probability - leftTranslation.probability;
+      if (probabilityDifference !== 0) return probabilityDifference;
+      const countDifference = rightTranslation.count - leftTranslation.count;
+      if (countDifference !== 0) return countDifference;
+      const leftText = normalizeText(leftTranslation.text);
+      const rightText = normalizeText(rightTranslation.text);
+      if (leftText !== rightText) return leftText < rightText ? -1 : 1;
+    }
+
+    return 0;
+  });
 }
 
 function flattenTranslations(structured) {
@@ -252,6 +319,11 @@ if (typeof module !== 'undefined' && module.exports) {
     loadDictionary,
     lookupWord,
     formatDisplayResult,
-    getDictionaryStats: () => ({ loaded: dictionaryEntries.length, skipped: skippedRecords }),
+    getDictionaryStats: () => ({
+      loaded: dictionaryEntries.length,
+      skipped: skippedRecords,
+      legacyLoaded,
+      statisticalLoaded,
+    }),
   };
 }

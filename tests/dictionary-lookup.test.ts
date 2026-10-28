@@ -1,9 +1,53 @@
 import assert from 'node:assert/strict';
 import { lookupTranslation } from '../src/dictionary/lookup-service.js';
+import { STATISTICAL_DICTIONARY_SOURCE } from '../src/dictionary/model.js';
 import { InMemoryDictionaryRepository } from '../src/dictionary/repository.js';
 import { dictionaryFixture } from './fixtures/dictionary-fixture.js';
 
 const repository = new InMemoryDictionaryRepository(dictionaryFixture);
+const statisticalEntries = [
+  {
+    ...dictionaryFixture[0],
+    id: 'bank-statistical-lower',
+    source: STATISTICAL_DICTIONARY_SOURCE,
+    senses: [{
+      id: 'bank-statistical-lower:sense-1',
+      translations: [{
+        id: 'bank-statistical-lower:translation',
+        text: 'банковский',
+        probability: 0.2,
+        count: 40,
+      }],
+    }],
+  },
+  {
+    ...dictionaryFixture[0],
+    id: 'bank-statistical-higher',
+    source: STATISTICAL_DICTIONARY_SOURCE,
+    senses: [{
+      id: 'bank-statistical-higher:sense-1',
+      translations: [{
+        id: 'bank-statistical-higher:translation',
+        text: 'банк',
+        probability: 0.8,
+        count: 30,
+      }],
+    }],
+  },
+];
+const rankedRepository = new InMemoryDictionaryRepository([
+  ...dictionaryFixture,
+  ...statisticalEntries,
+]);
+
+const rankedBank = lookupTranslation(rankedRepository, 'bank', 'en', 'ru');
+assert.equal(rankedBank.found, true);
+if (rankedBank.found) {
+  assert.deepEqual(
+    rankedBank.matches.map((match) => match.entry.id),
+    ['bank-finance', 'bank-river', 'bank-statistical-higher', 'bank-statistical-lower'],
+  );
+}
 
 const bank = lookupTranslation(repository, '  BANK!  ', 'en', 'ru');
 assert.equal(bank.found, true);

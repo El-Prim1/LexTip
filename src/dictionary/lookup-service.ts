@@ -1,5 +1,9 @@
 import { analyzeWord, normalizeLookupKey, type WordAnalysis } from '../nlp/lemmatization.js';
-import type { DictionaryEntry, DictionaryPartOfSpeech } from './model.js';
+import {
+  STATISTICAL_DICTIONARY_SOURCE,
+  type DictionaryEntry,
+  type DictionaryPartOfSpeech,
+} from './model.js';
 import type { DictionaryRepository } from './repository.js';
 
 export interface LookupOptions {
@@ -95,7 +99,27 @@ function deduplicateMatches(matches: LookupMatch[]): LookupMatch[] {
     const current = unique.get(match.entry.id);
     if (!current || match.score > current.score) unique.set(match.entry.id, match);
   }
-  return [...unique.values()].sort((left, right) => right.score - left.score);
+  return [...unique.values()].sort((left, right) => {
+    const leftImported = left.entry.source === STATISTICAL_DICTIONARY_SOURCE;
+    const rightImported = right.entry.source === STATISTICAL_DICTIONARY_SOURCE;
+    if (leftImported !== rightImported) return leftImported ? 1 : -1;
+    if (left.score !== right.score) return right.score - left.score;
+
+    if (leftImported && rightImported) {
+      const leftTranslation = left.entry.senses[0]?.translations[0];
+      const rightTranslation = right.entry.senses[0]?.translations[0];
+      const probabilityDifference = (rightTranslation?.probability ?? 0)
+        - (leftTranslation?.probability ?? 0);
+      if (probabilityDifference !== 0) return probabilityDifference;
+      const countDifference = (rightTranslation?.count ?? 0) - (leftTranslation?.count ?? 0);
+      if (countDifference !== 0) return countDifference;
+      const leftText = normalizeLookupKey(leftTranslation?.text ?? '');
+      const rightText = normalizeLookupKey(rightTranslation?.text ?? '');
+      if (leftText !== rightText) return leftText < rightText ? -1 : 1;
+    }
+
+    return 0;
+  });
 }
 
 export function lookupTranslation(

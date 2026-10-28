@@ -1,10 +1,13 @@
 export type LanguageCode = string;
 export type DictionaryEntryType = 'word' | 'phrase';
 export type DictionaryPartOfSpeech = string;
+export const STATISTICAL_DICTIONARY_SOURCE = 'statistical-dataset';
 
 export interface TranslationAlternative {
   id: string;
   text: string;
+  probability?: number;
+  count?: number;
 }
 
 export interface DictionarySense {
@@ -29,6 +32,8 @@ export interface DictionaryEntry {
 export interface LegacyDictionaryRecord {
   word?: unknown;
   translation?: unknown;
+  probability?: unknown;
+  count?: unknown;
   [key: string]: unknown;
 }
 

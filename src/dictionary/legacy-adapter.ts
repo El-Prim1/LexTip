@@ -1,8 +1,9 @@
-import type {
-  AdaptedDictionaryResult,
-  DictionaryEntry,
-  LegacyDictionaryRecord,
-  TranslationAlternative,
+import {
+  STATISTICAL_DICTIONARY_SOURCE,
+  type AdaptedDictionaryResult,
+  type DictionaryEntry,
+  type LegacyDictionaryRecord,
+  type TranslationAlternative,
 } from './model.js';
 
 const DEFAULT_SOURCE_LANGUAGE = 'en';
@@ -12,6 +13,7 @@ const LEGACY_SOURCE = 'legacy-json';
 export interface LegacyAdapterOptions {
   sourceLanguage?: string;
   targetLanguage?: string;
+  source?: string;
 }
 
 export function normalizeDictionaryKey(value: string): string {
@@ -27,10 +29,17 @@ function stableHash(value: string): string {
   return (hash >>> 0).toString(16).padStart(8, '0');
 }
 
-function createTranslation(entryId: string, translation: string): TranslationAlternative {
+function createTranslation(
+  entryId: string,
+  translation: string,
+  probability?: number,
+  count?: number,
+): TranslationAlternative {
   return {
     id: `${entryId}:translation`,
     text: translation,
+    ...(probability === undefined ? {} : { probability }),
+    ...(count === undefined ? {} : { count }),
   };
 }
 
@@ -40,6 +49,7 @@ export function adaptLegacyDictionary(
 ): AdaptedDictionaryResult {
   const sourceLanguage = options.sourceLanguage ?? DEFAULT_SOURCE_LANGUAGE;
   const targetLanguage = options.targetLanguage ?? DEFAULT_TARGET_LANGUAGE;
+  const source = options.source ?? LEGACY_SOURCE;
   const entries: DictionaryEntry[] = [];
   const skipped: Array<{ index: number; reason: string }> = [];
 
@@ -63,9 +73,29 @@ export function adaptLegacyDictionary(
       return;
     }
 
-    const entryId = `legacy-entry-${stableHash(
-      `${index}|${sourceLanguage}|${targetLanguage}|${lemma}|${translation}`,
-    )}`;
+    const probability = candidate?.probability;
+    const count = candidate?.count;
+    const statisticalProbability = typeof probability === 'number'
+      && Number.isFinite(probability)
+      && probability >= 0
+      && probability <= 1
+      ? probability
+      : undefined;
+    const statisticalCount = typeof count === 'number'
+      && Number.isSafeInteger(count)
+      && count > 0
+      ? count
+      : undefined;
+    if (source === STATISTICAL_DICTIONARY_SOURCE
+      && (statisticalProbability === undefined || statisticalCount === undefined)) {
+      skipped.push({ index, reason: 'Invalid statistical translation metadata' });
+      return;
+    }
+
+    const identity = `${index}|${sourceLanguage}|${targetLanguage}|${lemma}|${translation}`;
+    const entryId = source === LEGACY_SOURCE
+      ? `legacy-entry-${stableHash(identity)}`
+      : `statistical-entry-${stableHash(`${source}|${identity}`)}`;
     const senseId = `${entryId}:sense-1`;
 
     entries.push({
@@ -77,9 +107,14 @@ export function adaptLegacyDictionary(
       partOfSpeech: 'UNKNOWN',
       senses: [{
         id: senseId,
-        translations: [createTranslation(senseId, translation)],
+        translations: [createTranslation(
+          senseId,
+          translation,
+          source === STATISTICAL_DICTIONARY_SOURCE ? statisticalProbability : undefined,
+          source === STATISTICAL_DICTIONARY_SOURCE ? statisticalCount : undefined,
+        )],
       }],
-      source: LEGACY_SOURCE,
+      source,
       verificationStatus: 'unverified',
     });
   });
