@@ -4,7 +4,7 @@
 
 const CONFIG = {
   // Backend URL for translation API
-  BACKEND_URL: 'https://lextip.onrender.com',
+  BACKEND_URL: 'http://localhost:3000',
 
   // Request timeout in milliseconds
   LAYER3_TIMEOUT_MS: 10000,

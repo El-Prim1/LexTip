@@ -76,7 +76,7 @@ async function handleTranslation(text) {
 
   // Layer 3: Backend API Request
   try {
-    const backendUrl = (typeof CONFIG !== 'undefined' && CONFIG.BACKEND_URL) || 'https://lextip.onrender.com';
+    const backendUrl = (typeof CONFIG !== 'undefined' && CONFIG.BACKEND_URL) || 'http://localhost:3000';
     const timeoutMs = (typeof CONFIG !== 'undefined' && CONFIG.LAYER3_TIMEOUT_MS) || 10000;
 
     const controller = new AbortController();
