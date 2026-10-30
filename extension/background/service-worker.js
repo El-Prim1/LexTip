@@ -13,6 +13,8 @@ const DEFAULT_TARGET_LANGUAGE = 'ru';
 
 // Ephemeral deduplication map for in-flight translation requests
 const inFlightRequests = new Map();
+let translationMessageSequence = 0;
+let backendPostSequence = 0;
 
 // Installation Lifecycle Listener
 chrome.runtime.onInstalled.addListener(() => {
@@ -28,7 +30,7 @@ chrome.runtime.onInstalled.addListener(() => {
 /**
  * Sequential translation pipeline executing Layer 1 -> Layer 2 -> Layer 3.
  */
-async function handleTranslation(text) {
+async function handleTranslation(text, requestId) {
   const startTime = performance.now();
   const trimmed = text.trim();
 
@@ -76,12 +78,17 @@ async function handleTranslation(text) {
 
   // Layer 3: Backend API Request
   try {
-    const backendUrl = (typeof CONFIG !== 'undefined' && CONFIG.BACKEND_URL) || 'http://localhost:3000';
+    const backendUrl = (typeof CONFIG !== 'undefined' && CONFIG.BACKEND_URL) || ' https://lextip.onrender.com';
     const timeoutMs = (typeof CONFIG !== 'undefined' && CONFIG.LAYER3_TIMEOUT_MS) || 10000;
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
+    const backendPostId = ++backendPostSequence;
+    console.info('[LexTip] Sending backend translation POST', {
+      requestId,
+      backendPostId,
+    });
     const response = await fetch(`${backendUrl}/api/translate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -159,10 +166,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       return false;
     }
 
+    const requestId = ++translationMessageSequence;
+    console.info('[LexTip] Translation message received', { requestId });
     const requestKey = text.trim().toLowerCase();
 
     // Check for in-flight pending request
     if (inFlightRequests.has(requestKey)) {
+      console.info('[LexTip] Coalescing in-flight translation request', { requestId });
       inFlightRequests.get(requestKey).then((data) => {
         sendResponse({ success: true, data });
       }).catch((err) => {
@@ -185,7 +195,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       return true;
     }
 
-    const translationPromise = handleTranslation(text);
+    const translationPromise = handleTranslation(text, requestId);
     inFlightRequests.set(requestKey, translationPromise);
 
     translationPromise

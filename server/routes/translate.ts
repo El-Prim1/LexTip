@@ -1,9 +1,14 @@
 import { Router, Request, Response } from 'express';
+import { performance } from 'node:perf_hooks';
 import { translateText } from '../services/translation-service';
 
 export const translateRouter = Router();
+let apiRequestSequence = 0;
 
 translateRouter.post('/translate', async (req: Request, res: Response): Promise<void> => {
+  const apiRequestId = ++apiRequestSequence;
+  const startedAt = performance.now();
+  console.info('[TranslationServer] API translation request received', { apiRequestId });
   const { text } = req.body || {};
 
   if (typeof text !== 'string' || text.trim().length === 0) {
@@ -17,7 +22,12 @@ translateRouter.post('/translate', async (req: Request, res: Response): Promise<
   }
 
   try {
-    const result = await translateText(text.trim());
+    const result = await translateText(text.trim(), 10000, apiRequestId);
+    console.info('[TranslationServer] API translation request completed', {
+      apiRequestId,
+      status: 200,
+      durationMs: Number((performance.now() - startedAt).toFixed(2)),
+    });
     res.status(200).json({
       translatedText: result.translatedText,
       sourceLanguage: result.sourceLanguage,

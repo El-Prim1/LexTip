@@ -9,8 +9,7 @@
     "scripting"
   ],
   "host_permissions": [
-    "https://*/*",
-    "http://*/*"
+    "https://lextip.onrender.com/*"
   ],
   "background": {
     "service_worker": "background/service-worker.js"
