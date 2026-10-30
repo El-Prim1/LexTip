@@ -12,10 +12,12 @@
     "test:dictionary": "node tests/dictionary-integration.test.mjs",
     "build:dictionary": "node scripts/build-statistical-dictionary.mjs",
     "build:extension-nlp": "node scripts/build-extension-nlp.mjs",
+    "build:extension-translation": "node scripts/build-extension-translation.mjs",
     "test:nlp": "node scripts/run-nlp-test.mjs"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
+    "@huggingface/transformers": "^4.3.2",
     "@tailwindcss/vite": "^4.3.3",
     "@vitejs/plugin-react": "^6.1.1",
     "dotenv": "^17.2.3",
