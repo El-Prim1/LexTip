@@ -98,5 +98,73 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  if (message.type === 'GOOGLE_TRANSLATE_REQUEST') {
+    const { text, sourceLang = 'auto', targetLang = 'ru' } = message.payload || {};
+
+    if (!text || typeof text !== 'string') {
+      sendResponse({ success: false, error: 'Invalid or missing text parameter.' });
+      return false;
+    }
+
+    fetchGoogleTranslation(text, sourceLang, targetLang)
+      .then((data) => sendResponse({ success: true, data }))
+      .catch((error) => {
+        sendResponse({
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      });
+
+    return true;
+  }
+
   return false;
 });
+
+/**
+ * Fetches translation from the undocumented Google Translate endpoint.
+ * @param {string} text Text to translate
+ * @param {string} sourceLang Source language ('auto' by default)
+ * @param {string} targetLang Target language ('ru' by default)
+ * @param {number} timeoutMs Request timeout in milliseconds
+ * @returns {Promise<{ translation: string, detectedSourceLang: string }>}
+ */
+async function fetchGoogleTranslation(text, sourceLang = 'auto', targetLang = 'ru', timeoutMs = 5000) {
+  const url = `https://clients5.google.com/translate_a/t?client=dict-chrome-ex&sl=${encodeURIComponent(sourceLang)}&tl=${encodeURIComponent(targetLang)}&q=${encodeURIComponent(text)}`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(url, {
+      method: 'GET',
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      throw new Error(`Google endpoint responded with status ${response.status}`);
+    }
+
+    const data = await response.json();
+    let translation = '';
+    let detectedSourceLang = sourceLang;
+
+    if (Array.isArray(data)) {
+      if (Array.isArray(data[0])) {
+        translation = data.map((item) => (Array.isArray(item) ? item[0] : item)).filter(Boolean).join('');
+        if (data[0][1]) detectedSourceLang = data[0][1];
+      } else if (typeof data[0] === 'string') {
+        translation = data[0];
+      }
+    } else if (typeof data === 'string') {
+      translation = data;
+    }
+
+    if (!translation) {
+      throw new Error('Empty translation received from Google endpoint.');
+    }
+
+    return { translation, detectedSourceLang };
+  } finally {
+    clearTimeout(timer);
+  }
+}

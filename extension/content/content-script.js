@@ -13,7 +13,7 @@
     DEBOUNCE_MS: 150,
     VIEWPORT_PADDING: 12,
     GAP: 8,
-    MIN_WIDTH: 220,
+    MIN_WIDTH: 100,
     MAX_WIDTH: 480,
     HOST_TAG_ID: 'lextip-popover-host',
     MAX_SELECTION_LENGTH: 300,
@@ -443,7 +443,112 @@
     currentSelectionText = '';
   }
 
-  function dispatchTranslationRequest(text, requestId) {
+  const CACHE_PREFIX = 'lextip_trans_';
+
+  function getCacheKey(text, targetLang = 'ru') {
+    return `${CACHE_PREFIX}${encodeURIComponent(text.trim().toLowerCase())}_${targetLang}`;
+  }
+
+  function getCachedTranslation(text, targetLang = 'ru') {
+    return new Promise((resolve) => {
+      if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) {
+        resolve(null);
+        return;
+      }
+      const key = getCacheKey(text, targetLang);
+      chrome.storage.local.get([key], (result) => {
+        if (chrome.runtime.lastError) {
+          console.warn('[LexTip] Cache read error:', chrome.runtime.lastError);
+          resolve(null);
+          return;
+        }
+        resolve(result && result[key] ? result[key] : null);
+      });
+    });
+  }
+
+  function setCachedTranslation(text, targetLang = 'ru', translation) {
+    if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local || !translation) return;
+    const key = getCacheKey(text, targetLang);
+    chrome.storage.local.set({ [key]: translation }, () => {
+      if (chrome.runtime.lastError) {
+        console.warn('[LexTip] Cache write error:', chrome.runtime.lastError);
+      }
+    });
+  }
+
+  function requestDictionaryLookup(text, timeoutMs = 800) {
+    return new Promise((resolve) => {
+      if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.sendMessage) {
+        resolve(null);
+        return;
+      }
+
+      let timedOut = false;
+      const timer = setTimeout(() => {
+        timedOut = true;
+        resolve(null);
+      }, timeoutMs);
+
+      chrome.runtime.sendMessage(
+        {
+          type: 'TRANSLATE_REQUEST',
+          payload: { text, targetLang: 'auto' },
+        },
+        (response) => {
+          clearTimeout(timer);
+          if (timedOut) return;
+          if (chrome.runtime.lastError || !response || !response.success || !response.data) {
+            resolve(null);
+            return;
+          }
+          const { translation } = response.data;
+          if (!translation || translation.trim().toLowerCase() === 'translation not found') {
+            resolve(null);
+            return;
+          }
+          resolve(response.data);
+        }
+      );
+    });
+  }
+
+  function requestBackgroundTranslation(text, targetLang = 'ru', timeoutMs = 6000) {
+    return new Promise((resolve, reject) => {
+      if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.sendMessage) {
+        reject(new Error('Chrome runtime messaging unavailable'));
+        return;
+      }
+
+      let timedOut = false;
+      const timer = setTimeout(() => {
+        timedOut = true;
+        reject(new Error('Background translation timeout'));
+      }, timeoutMs);
+
+      chrome.runtime.sendMessage(
+        {
+          type: 'GOOGLE_TRANSLATE_REQUEST',
+          payload: { text, sourceLang: 'auto', targetLang },
+        },
+        (response) => {
+          clearTimeout(timer);
+          if (timedOut) return;
+          if (chrome.runtime.lastError) {
+            reject(new Error(chrome.runtime.lastError.message));
+            return;
+          }
+          if (!response || !response.success || !response.data) {
+            reject(new Error(response?.error || 'Translation request failed'));
+            return;
+          }
+          resolve(response.data);
+        }
+      );
+    });
+  }
+
+  async function dispatchTranslationRequest(text, requestId) {
     let resolved = false;
 
     const applyFallback = () => {
@@ -456,33 +561,49 @@
       });
     };
 
-    if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
-      try {
-        const timer = setTimeout(applyFallback, 400);
+    try {
+      // 1. Tier 1: Check offline dictionaries
+      const dictResult = await requestDictionaryLookup(text);
+      if (requestId !== currentRequestId) return;
 
-        chrome.runtime.sendMessage(
-          {
-            type: 'TRANSLATE_REQUEST',
-            payload: { text, targetLang: 'auto' },
-          },
-          (response) => {
-            clearTimeout(timer);
-            if (chrome.runtime.lastError || !response || !response.success || !response.data) {
-              applyFallback();
-              return;
-            }
-            if (requestId !== currentRequestId) return;
-            resolved = true;
-            updatePopoverContent(response.data);
-          }
-        );
-      } catch (err) {
+      if (dictResult) {
+        resolved = true;
+        updatePopoverContent(dictResult);
+        return;
+      }
+
+      // 2. Tier 2: Check browser local cache
+      const cachedTranslation = await getCachedTranslation(text, 'ru');
+      if (requestId !== currentRequestId) return;
+
+      if (cachedTranslation) {
+        resolved = true;
+        updatePopoverContent({
+          translation: cachedTranslation,
+          selectedWord: text,
+          lemma: text,
+        });
+        return;
+      }
+
+      // 3. Tier 3: Fetch from Google Translate endpoint
+      const result = await requestBackgroundTranslation(text, 'ru');
+      if (requestId !== currentRequestId) return;
+
+      if (result && result.translation) {
+        resolved = true;
+        setCachedTranslation(text, 'ru', result.translation);
+        updatePopoverContent({
+          translation: result.translation,
+          selectedWord: text,
+          lemma: text,
+        });
+      } else {
         applyFallback();
       }
-    } else {
-      setTimeout(() => {
-        applyFallback();
-      }, 50);
+    } catch (error) {
+      console.warn('[LexTip] Translation dispatch error:', error);
+      applyFallback();
     }
   }
 
