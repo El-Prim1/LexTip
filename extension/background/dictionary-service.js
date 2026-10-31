@@ -266,7 +266,7 @@ async function lookupWord(word) {
         ...structured,
         structured,
         translation: flattenTranslations(structured),
-        displayHeadword: formatDisplayHeadword(normalizedText, normalizedText),
+        displayHeadword: formatDisplayHeadword(phraseMatches[0].lemma, normalizedText),
         selectedWord: normalizedText,
         lemma: phraseMatches[0].lemma,
         partOfSpeech: phraseMatches[0].partOfSpeech,
