@@ -40,13 +40,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       const latencyMs = Math.max(0.1, Number((performance.now() - startTime).toFixed(2)));
 
       if (result.found) {
-        // Dictionary hit with lemma and selected word
+        // Dictionary hit with lemma and selected word; the popup headword is
+        // formatted by the dictionary service so lookup semantics stay in one
+        // place (lemma plus original selection when lemmatization changed it).
         sendResponse({
           success: true,
           data: {
             translation: result.translation,
             lemma: result.lemma,
             selectedWord: result.selectedWord,
+            originalText: result.originalText,
+            displayHeadword: result.displayHeadword,
+            displayLine: formatLookupDisplay(result),
             partOfSpeech: result.partOfSpeech,
             analysis: result.analysis,
             layer: 1,
@@ -61,6 +66,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             translation: 'Translation not found',
             lemma: result.lemma,
             selectedWord: result.selectedWord,
+            originalText: result.originalText,
+            displayHeadword: result.displayHeadword || result.selectedWord,
+            displayLine: formatLookupDisplay(result),
             partOfSpeech: result.partOfSpeech,
             analysis: result.analysis,
             layer: 1,

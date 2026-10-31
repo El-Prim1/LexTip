@@ -619,7 +619,14 @@
         ? 'Translation not found'
         : data.translation;
 
-    if (sourceEl) sourceEl.textContent = currentSelectionText;
+    // Headword line prepared by the dictionary service: matched lemma plus the
+    // original selection in parentheses when lemmatization changed the form.
+    // Falls back to the raw selection for cache/Google tiers that have no
+    // dictionary metadata. The full original selection always stays visible.
+    const displayHeadword = (data && typeof data.displayHeadword === 'string' && data.displayHeadword)
+      || currentSelectionText;
+
+    if (sourceEl) sourceEl.textContent = displayHeadword;
     if (targetEl) targetEl.textContent = targetTranslation;
     if (originalEl) originalEl.textContent = currentSelectionText;
     if (translationEl) translationEl.textContent = targetTranslation;

@@ -217,6 +217,8 @@ function flattenTranslations(structured) {
 
 async function lookupWord(word) {
   await loadDictionary();
+  // The original selection is preserved verbatim for the entire pipeline;
+  // lemmatization only produces lookup candidates and never replaces it.
   const originalText = word === null || word === undefined ? '' : String(word);
   const normalizedText = normalizeText(originalText);
   const base = {
@@ -239,6 +241,7 @@ async function lookupWord(word) {
       ...structured,
       structured,
       translation: null,
+      displayHeadword: normalizedText,
       selectedWord: normalizedText,
       lemma: normalizedText,
       partOfSpeech: null,
@@ -246,25 +249,71 @@ async function lookupWord(word) {
     };
   }
 
+  // Phrases are handled before any word-level morphological analysis so a
+  // multiword expression keeps its meaning instead of being lemmatized token
+  // by token. Exact phrase matches keep their previous priority behaviour.
   if (normalizedText.includes(' ')) {
-    const entries = byPhrase.get(indexKey(normalizedText, 'en', 'ru')) || [];
-    const matches = deduplicateMatches(entries.map((entry) => ({
+    const phraseEntries = byPhrase.get(indexKey(normalizedText, 'en', 'ru')) || [];
+    const phraseMatches = deduplicateMatches(phraseEntries.map((entry) => ({
       entry,
       lemma: entry.lemma,
       partOfSpeech: entry.partOfSpeech,
       score: 20,
     })));
+    if (phraseMatches.length > 0) {
+      const structured = { ...base, found: true, matchType: 'phrase', matches: phraseMatches };
+      return {
+        ...structured,
+        structured,
+        translation: flattenTranslations(structured),
+        displayHeadword: formatDisplayHeadword(normalizedText, normalizedText),
+        selectedWord: normalizedText,
+        lemma: phraseMatches[0].lemma,
+        partOfSpeech: phraseMatches[0].partOfSpeech,
+        analysis: null,
+      };
+    }
+
+    // Fallback: build whole-phrase lemma candidates from per-token analyses
+    // (the original phrase stays intact as a candidate too).
+    let tokenAnalyses = null;
+    if (nlpRuntime && typeof nlpRuntime.analyzeText === 'function') {
+      try {
+        tokenAnalyses = nlpRuntime.analyzeText(originalText);
+      } catch (error) {
+        console.warn('[DictionaryService] Phrase lemmatization failed:', error);
+        tokenAnalyses = null;
+      }
+    }
+    const phraseCandidates = buildPhraseLemmaCandidates(tokenAnalyses, normalizedText);
+    const matches = deduplicateMatches(phraseCandidates.flatMap((candidate) => (
+      (byPhrase.get(indexKey(candidate.lemma, 'en', 'ru')) || [])
+        .map((entry) => rankMatch(entry, candidate, candidate.lemma === normalizedText))
+    )));
     const structured = matches.length > 0
-      ? { ...base, found: true, matchType: 'phrase', matches }
-      : { ...base, found: false, reason: 'phrase-not-found', matches: [] };
+      ? {
+        ...base,
+        found: true,
+        matchType: matches.some((match) => match.lemma === normalizedText) ? 'phrase-direct' : 'phrase-lemma',
+        matches,
+        lemmaCandidates: phraseCandidates,
+      }
+      : {
+        ...base,
+        found: false,
+        reason: 'phrase-not-found',
+        matches: [],
+        lemmaCandidates: phraseCandidates,
+      };
     return {
       ...structured,
       structured,
       translation: flattenTranslations(structured),
+      displayHeadword: formatDisplayHeadword(matches[0] ? matches[0].lemma : normalizedText, normalizedText),
       selectedWord: normalizedText,
       lemma: matches[0] ? matches[0].lemma : normalizedText,
       partOfSpeech: matches[0] ? matches[0].partOfSpeech : null,
-      analysis: null,
+      analysis: Array.isArray(tokenAnalyses) && tokenAnalyses.length > 0 ? tokenAnalyses : null,
     };
   }
 
@@ -298,11 +347,79 @@ async function lookupWord(word) {
     ...structured,
     structured,
     translation: flattenTranslations(structured),
+    displayHeadword: formatDisplayHeadword(matches[0] ? matches[0].lemma : normalizedText, normalizedText),
     selectedWord: normalizedText,
     lemma: matches[0] ? matches[0].lemma : (analysis && analysis.lemma) || normalizedText,
     partOfSpeech: matches[0] ? matches[0].partOfSpeech : (analysis && analysis.partOfSpeech) || null,
     analysis,
   };
+}
+
+// Collect every distinct lemma produced by the token analyses into one
+// ordered candidate list for whole-phrase lookups. The raw normalized phrase
+// always participates so an exact dictionary hit can never be lost.
+function buildPhraseLemmaCandidates(tokenAnalyses, normalizedPhrase) {
+  const candidates = [];
+  const add = (lemma, partOfSpeech) => {
+    const normalizedLemma = normalizeText(lemma);
+    if (!normalizedLemma || !normalizedLemma.includes(' ')) return;
+    const key = `${normalizedLemma}:${partOfSpeech || ''}`;
+    if (!candidates.some((candidate) => `${candidate.lemma}:${candidate.partOfSpeech || ''}` === key)) {
+      candidates.push({ lemma: normalizedLemma, partOfSpeech: partOfSpeech || null });
+    }
+  };
+
+  if (Array.isArray(tokenAnalyses)) {
+    // wink-nlp returns a placeholder object ("[object Object]") instead of a
+    // real lemma for non-word tokens such as spaces or punctuation; those
+    // tokens keep their surface form so phrase candidates stay readable.
+    const isUsableLemma = (value) => typeof value === 'string'
+      && value.trim().length > 0
+      && !value.includes('[object');
+    const lemmaSlots = tokenAnalyses.map((token) => {
+      const seen = new Set();
+      const options = [];
+      const pushOption = (lemma, partOfSpeech) => {
+        if (!isUsableLemma(lemma)) return;
+        const normalizedLemma = normalizeText(lemma);
+        if (!normalizedLemma || seen.has(`${normalizedLemma}:${partOfSpeech || ''}`)) return;
+        seen.add(`${normalizedLemma}:${partOfSpeech || ''}`);
+        options.push({ lemma: normalizedLemma, partOfSpeech: partOfSpeech || null });
+      };
+      if (token) {
+        pushOption(token.lemma, token.partOfSpeech);
+        (token.candidates || []).forEach((candidate) => pushOption(candidate.lemma, candidate.partOfSpeech));
+      }
+      if (options.length === 0) pushOption((token && (token.normalized || token.surface)) || '', null);
+      return options;
+    });
+    if (lemmaSlots.length > 1 && lemmaSlots.every((slot) => slot.length > 0)) {
+      let combinations = [''];
+      for (const slot of lemmaSlots) {
+        const next = [];
+        for (const prefix of combinations) {
+          for (const option of slot) {
+            next.push({ text: prefix ? `${prefix} ${option.lemma}` : option.lemma, partOfSpeech: option.partOfSpeech });
+          }
+        }
+        combinations = next;
+        if (combinations.length > 64) break;
+      }
+      combinations.slice(0, 64).forEach((combination) => add(combination.text, combination.partOfSpeech));
+    }
+  }
+  add(normalizedPhrase, null);
+  return candidates;
+}
+
+// Headword shown in the popup: the matched dictionary lemma followed by the
+// original selected text in parentheses whenever lemmatization changed the
+// form. Identical forms render without parentheses.
+function formatDisplayHeadword(lemma, normalizedText) {
+  const cleanLemma = normalizeText(lemma);
+  const cleanOriginal = normalizeText(normalizedText);
+  if (!cleanLemma || cleanLemma === cleanOriginal) return cleanOriginal;
+  return `${cleanLemma} (${cleanOriginal})`;
 }
 
 function formatDisplayResult(selectedWord, translation) {
@@ -314,11 +431,22 @@ function formatDisplayResult(selectedWord, translation) {
   return `${cleanSelected} — ${targetTranslation}`;
 }
 
+// Popup line built entirely inside the dictionary service so the content
+// script never duplicates lookup semantics.
+function formatLookupDisplay(result) {
+  if (!result) return 'Translation not found';
+  const headword = result.displayHeadword
+    || formatDisplayHeadword(result.lemma, result.selectedWord);
+  return formatDisplayResult(headword, result.translation);
+}
+
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     loadDictionary,
     lookupWord,
     formatDisplayResult,
+    formatDisplayHeadword,
+    formatLookupDisplay,
     getDictionaryStats: () => ({
       loaded: dictionaryEntries.length,
       skipped: skippedRecords,
