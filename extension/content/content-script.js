@@ -11,6 +11,9 @@
 
   const CONFIG = {
     DEBOUNCE_MS: 150,
+    // While the user is actively dragging a selection, the popup refreshes
+    // the translation of the current selection on this interval (~500 ms).
+    LIVE_SELECTION_DEBOUNCE_MS: 500,
     VIEWPORT_PADDING: 12,
     GAP: 8,
     MIN_WIDTH: 100,
@@ -263,6 +266,11 @@
   let lastActiveRange = null;
   let lastSelectionRect = null;
   let currentRequestId = 0;
+  // Live-selection tracking: true between mousedown and mouseup so the popup
+  // can refresh translations while the user is still dragging a selection.
+  let isMouseDragging = false;
+  let lastLiveSelectionText = '';
+  let liveDebounceTimer = null;
 
   function initShadowHost() {
     if (hostElement && shadowRoot) return;
@@ -427,27 +435,33 @@
     }
   }
 
-  function showPopover(rect, text, requestText = text.trim()) {
+  function showPopover(rect, text, requestText = text.trim(), options = {}) {
     if (!popoverElement) initShadowHost();
     if (!popoverElement) return;
 
     currentSelectionText = text;
     lastSelectionRect = rect;
     currentRequestId += 1;
-    popoverElement.classList.remove('ll-expanded');
-    popoverElement.style.width = '';
-    popoverElement.style.maxHeight = `calc(100vh - ${CONFIG.VIEWPORT_PADDING * 2}px)`;
 
-    const toggle = shadowRoot.getElementById('ll-toggle');
-    const expandedContent = shadowRoot.getElementById('ll-expanded-content');
-    if (toggle) {
-      toggle.setAttribute('aria-expanded', 'false');
-      toggle.setAttribute('aria-label', 'Expand translation');
-      toggle.title = 'Expand translation';
-    }
-    if (expandedContent) {
-      expandedContent.setAttribute('aria-hidden', 'true');
-      expandedContent.style.maxHeight = '';
+    // During live-selection refreshes keep the popup in whatever state the
+    // user left it (e.g. expanded); new selections always start collapsed.
+    const preserveExpanded = options.preserveExpanded === true && popoverElement.classList.contains('ll-expanded');
+    if (!preserveExpanded) {
+      popoverElement.classList.remove('ll-expanded');
+      popoverElement.style.width = '';
+      popoverElement.style.maxHeight = `calc(100vh - ${CONFIG.VIEWPORT_PADDING * 2}px)`;
+
+      const toggle = shadowRoot.getElementById('ll-toggle');
+      const expandedContent = shadowRoot.getElementById('ll-expanded-content');
+      if (toggle) {
+        toggle.setAttribute('aria-expanded', 'false');
+        toggle.setAttribute('aria-label', 'Expand translation');
+        toggle.title = 'Expand translation';
+      }
+      if (expandedContent) {
+        expandedContent.setAttribute('aria-hidden', 'true');
+        expandedContent.style.maxHeight = '';
+      }
     }
 
     const sourceEl = shadowRoot.getElementById('ll-source');
@@ -480,6 +494,9 @@
       popoverElement.classList.remove('ll-visible');
     }
     currentSelectionText = '';
+    // Invalidate any in-flight lookup so late responses cannot re-render or
+    // reposition the hidden popup (e.g. during live-selection updates).
+    currentRequestId += 1;
   }
 
   const CACHE_PREFIX = 'lextip_trans_';
@@ -707,7 +724,7 @@
       `${TARGET_LANGUAGE_NAMES['ru'] || FALLBACK_TARGET_LABEL} translation`
     );
 
-    if (popoverElement && (lastActiveRange || lastSelectionRect)) {
+    if (popoverElement && popoverElement.classList.contains('ll-visible') && (lastActiveRange || lastSelectionRect)) {
       try {
         const rect = lastActiveRange ? lastActiveRange.getBoundingClientRect() : lastSelectionRect;
         lastSelectionRect = rect;
@@ -756,40 +773,79 @@
     clearTimeout(debounceTimer);
 
     debounceTimer = setTimeout(() => {
-      const selection = window.getSelection();
-
-      if (!selection || selection.isCollapsed || selection.rangeCount === 0) {
-        return;
-      }
-
-      const selectedText = selection.toString();
-      const text = selectedText.trim();
-      if (!text || text.length > CONFIG.MAX_SELECTION_LENGTH) {
-        return;
-      }
-
-      const anchorNode = selection.anchorNode;
-      const targetElement = anchorNode ? (anchorNode.nodeType === Node.ELEMENT_NODE ? anchorNode : anchorNode.parentElement) : null;
-
-      if (targetElement) {
-        if (targetElement.tagName === 'INPUT' && targetElement.type === 'password') return;
-        if (targetElement.closest && targetElement.closest('[data-lextip-ignore]')) return;
-        if (targetElement.id === CONFIG.HOST_TAG_ID || (hostElement && hostElement.contains(targetElement))) return;
-      }
-
-      const range = selection.getRangeAt(0);
-      const rect = range.getBoundingClientRect();
-
-      // Guard against zero-dimension selections
-      if (rect.width === 0 && rect.height === 0) return;
-
-      lastActiveRange = range;
-      showPopover(rect, selectedText, text);
+      const selectionInfo = getValidatedSelection();
+      if (!selectionInfo) return;
+      lastLiveSelectionText = selectionInfo.text;
+      showPopover(selectionInfo.rect, selectionInfo.selectedText, selectionInfo.text);
     }, CONFIG.DEBOUNCE_MS);
   }
 
+  // Shared validation for both final (mouseup/dblclick) and live (dragging)
+  // selections. Returns null when the current selection should be ignored.
+  function getValidatedSelection() {
+    const selection = window.getSelection();
+
+    if (!selection || selection.isCollapsed || selection.rangeCount === 0) {
+      return null;
+    }
+
+    const selectedText = selection.toString();
+    const text = selectedText.trim();
+    if (!text || text.length > CONFIG.MAX_SELECTION_LENGTH) {
+      return null;
+    }
+
+    const anchorNode = selection.anchorNode;
+    const targetElement = anchorNode ? (anchorNode.nodeType === Node.ELEMENT_NODE ? anchorNode : anchorNode.parentElement) : null;
+
+    if (targetElement) {
+      if (targetElement.tagName === 'INPUT' && targetElement.type === 'password') return null;
+      if (targetElement.closest && targetElement.closest('[data-lextip-ignore]')) return null;
+      if (targetElement.id === CONFIG.HOST_TAG_ID || (hostElement && hostElement.contains(targetElement))) return null;
+    }
+
+    const range = selection.getRangeAt(0);
+    const rect = range.getBoundingClientRect();
+
+    // Guard against zero-dimension selections
+    if (rect.width === 0 && rect.height === 0) return null;
+
+    lastActiveRange = range;
+    return { selectedText, text, rect };
+  }
+
+  // Live updates while the user is still dragging a selection: every
+  // LIVE_SELECTION_DEBOUNCE_MS (~500 ms) after the selection last changed,
+  // re-translate whatever is currently selected so the popup keeps up with
+  // an extending highlight instead of waiting for mouseup.
+  function handleLiveSelectionEvaluation() {
+    clearTimeout(liveDebounceTimer);
+
+    liveDebounceTimer = setTimeout(() => {
+      if (!isMouseDragging) return;
+
+      const selectionInfo = getValidatedSelection();
+      if (!selectionInfo) return;
+      if (selectionInfo.text === lastLiveSelectionText) return;
+
+      lastLiveSelectionText = selectionInfo.text;
+      const wasVisible = popoverElement && popoverElement.classList.contains('ll-visible');
+      showPopover(selectionInfo.rect, selectionInfo.selectedText, selectionInfo.text, { preserveExpanded: wasVisible });
+    }, CONFIG.LIVE_SELECTION_DEBOUNCE_MS);
+  }
+
   function setupEventListeners() {
+    document.addEventListener('mousedown', (e) => {
+      const path = e.composedPath ? e.composedPath() : [];
+      if (hostElement && (path.includes(hostElement) || hostElement.contains(e.target))) return;
+      isMouseDragging = true;
+      lastLiveSelectionText = '';
+      clearTimeout(liveDebounceTimer);
+    });
+
     document.addEventListener('mouseup', (e) => {
+      isMouseDragging = false;
+      clearTimeout(liveDebounceTimer);
       const path = e.composedPath ? e.composedPath() : [];
       if (hostElement && (path.includes(hostElement) || hostElement.contains(e.target))) return;
       handleSelectionEvaluation();
@@ -799,6 +855,14 @@
       const path = e.composedPath ? e.composedPath() : [];
       if (hostElement && (path.includes(hostElement) || hostElement.contains(e.target))) return;
       handleSelectionEvaluation();
+    });
+
+    // Fires on every selection change, including intermediate ones while the
+    // mouse button is held down. Only used for live drag updates here; the
+    // existing mouseup/dblclick flow is untouched.
+    document.addEventListener('selectionchange', () => {
+      if (!isMouseDragging) return;
+      handleLiveSelectionEvaluation();
     });
 
     // Escape Key: immediate dismissal
