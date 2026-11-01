@@ -16,7 +16,7 @@
     MIN_WIDTH: 220,
     MAX_WIDTH: 480,
     HOST_TAG_ID: 'lextip-popover-host',
-    MAX_SELECTION_LENGTH: 300,
+    MAX_SELECTION_LENGTH: 1000,
   };
 
   const ISOLATED_CSS = `
