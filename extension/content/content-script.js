@@ -11,13 +11,47 @@
 
   const CONFIG = {
     DEBOUNCE_MS: 150,
+    // While the user is actively dragging a selection, the popup refreshes
+    // the translation of the current selection on this interval (~500 ms).
+    LIVE_SELECTION_DEBOUNCE_MS: 300,
     VIEWPORT_PADDING: 12,
     GAP: 8,
-    MIN_WIDTH: 220,
+    MIN_WIDTH: 100,
     MAX_WIDTH: 480,
     HOST_TAG_ID: 'lextip-popover-host',
     MAX_SELECTION_LENGTH: 1000,
   };
+
+  // Readable language names (never raw codes) used for the dynamic popup labels.
+  const SOURCE_LANGUAGE_NAMES = {
+    en: 'English', ru: 'Russian', de: 'German', fr: 'French', es: 'Spanish',
+    it: 'Italian', pt: 'Portuguese', nl: 'Dutch', pl: 'Polish', uk: 'Ukrainian',
+    tr: 'Turkish', ar: 'Arabic', he: 'Hebrew', ja: 'Japanese', ko: 'Korean',
+    zh: 'Chinese', sv: 'Swedish', no: 'Norwegian', da: 'Danish', fi: 'Finnish',
+    cs: 'Czech', sk: 'Slovak', hu: 'Hungarian', ro: 'Romanian', bg: 'Bulgarian',
+    el: 'Greek', hi: 'Hindi', id: 'Indonesian', th: 'Thai', vi: 'Vietnamese',
+  };
+  const TARGET_LANGUAGE_NAMES = { ru: 'Russian' };
+  const NEUTRAL_SOURCE_LABEL = 'Source text';
+  const FALLBACK_TARGET_LABEL = 'Translation';
+
+  function detectSourceLanguageName(text) {
+    // Neutral fallback instead of guessing when detection fails.
+    if (!text || typeof text !== 'string') return null;
+    // Dictionary pipeline is English -> Russian; Cyrillic selections are not
+    // English source words, so they fall back to the neutral label.
+    if (/[\u0400-\u04FF]/.test(text)) return null;
+    if (/[a-zA-Z\u00C0-\u024F]/.test(text)) return 'English';
+    return null;
+  }
+
+  function applyPopupLabels(sourceLabel, targetLabel) {
+    if (!shadowRoot) return;
+    const sourceTitleEl = shadowRoot.getElementById('ll-source-label');
+    if (sourceTitleEl) sourceTitleEl.textContent = sourceLabel;
+    const targetLabelEl = shadowRoot.getElementById('ll-target-label');
+    if (targetLabelEl) targetLabelEl.textContent = targetLabel;
+  }
 
   const ISOLATED_CSS = `
     :host {
@@ -232,6 +266,11 @@
   let lastActiveRange = null;
   let lastSelectionRect = null;
   let currentRequestId = 0;
+  // Live-selection tracking: true between mousedown and mouseup so the popup
+  // can refresh translations while the user is still dragging a selection.
+  let isMouseDragging = false;
+  let lastLiveSelectionText = '';
+  let liveDebounceTimer = null;
 
   function initShadowHost() {
     if (hostElement && shadowRoot) return;
@@ -259,14 +298,14 @@
             <span class="ll-divider">—</span>
             <span class="ll-summary-text ll-target" id="ll-target">Translating...</span>
           </div>
-          <div class="ll-expanded-title">Original text</div>
+          <div class="ll-expanded-title" id="ll-source-label">Original text</div>
           <button class="ll-toggle" id="ll-toggle" type="button" aria-expanded="false" aria-controls="ll-expanded-content" aria-label="Expand translation" title="Expand translation">⋯</button>
         </div>
         <div class="ll-expanded-content" id="ll-expanded-content" aria-hidden="true">
           <div class="ll-detail-text ll-original" id="ll-original"></div>
           <div class="ll-detail-divider" aria-hidden="true"></div>
           <div>
-            <div class="ll-detail-label">Russian translation</div>
+            <div class="ll-detail-label" id="ll-target-label">Russian translation</div>
             <div class="ll-detail-text ll-detail-translation" id="ll-translation"></div>
           </div>
         </div>
@@ -396,27 +435,33 @@
     }
   }
 
-  function showPopover(rect, text, requestText = text.trim()) {
+  function showPopover(rect, text, requestText = text.trim(), options = {}) {
     if (!popoverElement) initShadowHost();
     if (!popoverElement) return;
 
     currentSelectionText = text;
     lastSelectionRect = rect;
     currentRequestId += 1;
-    popoverElement.classList.remove('ll-expanded');
-    popoverElement.style.width = '';
-    popoverElement.style.maxHeight = `calc(100vh - ${CONFIG.VIEWPORT_PADDING * 2}px)`;
 
-    const toggle = shadowRoot.getElementById('ll-toggle');
-    const expandedContent = shadowRoot.getElementById('ll-expanded-content');
-    if (toggle) {
-      toggle.setAttribute('aria-expanded', 'false');
-      toggle.setAttribute('aria-label', 'Expand translation');
-      toggle.title = 'Expand translation';
-    }
-    if (expandedContent) {
-      expandedContent.setAttribute('aria-hidden', 'true');
-      expandedContent.style.maxHeight = '';
+    // During live-selection refreshes keep the popup in whatever state the
+    // user left it (e.g. expanded); new selections always start collapsed.
+    const preserveExpanded = options.preserveExpanded === true && popoverElement.classList.contains('ll-expanded');
+    if (!preserveExpanded) {
+      popoverElement.classList.remove('ll-expanded');
+      popoverElement.style.width = '';
+      popoverElement.style.maxHeight = `calc(100vh - ${CONFIG.VIEWPORT_PADDING * 2}px)`;
+
+      const toggle = shadowRoot.getElementById('ll-toggle');
+      const expandedContent = shadowRoot.getElementById('ll-expanded-content');
+      if (toggle) {
+        toggle.setAttribute('aria-expanded', 'false');
+        toggle.setAttribute('aria-label', 'Expand translation');
+        toggle.title = 'Expand translation';
+      }
+      if (expandedContent) {
+        expandedContent.setAttribute('aria-hidden', 'true');
+        expandedContent.style.maxHeight = '';
+      }
     }
 
     const sourceEl = shadowRoot.getElementById('ll-source');
@@ -428,6 +473,14 @@
     if (targetEl) targetEl.textContent = '…';
     if (originalEl) originalEl.textContent = text;
     if (translationEl) translationEl.textContent = '…';
+
+    // Dynamic labels: detected source language name and selected target
+    // language name; neutral fallback when source detection fails.
+    const detectedSourceName = detectSourceLanguageName(text);
+    applyPopupLabels(
+      detectedSourceName ? `${detectedSourceName} text` : NEUTRAL_SOURCE_LABEL,
+      `${TARGET_LANGUAGE_NAMES['ru'] || FALLBACK_TARGET_LABEL} translation`
+    );
 
     popoverElement.classList.add('ll-visible');
     const coords = calculatePopoverPosition(rect);
@@ -441,9 +494,127 @@
       popoverElement.classList.remove('ll-visible');
     }
     currentSelectionText = '';
+    // Invalidate any in-flight lookup so late responses cannot re-render or
+    // reposition the hidden popup (e.g. during live-selection updates).
+    currentRequestId += 1;
   }
 
-  function dispatchTranslationRequest(text, requestId) {
+  const CACHE_PREFIX = 'lextip_trans_';
+
+  function getCacheKey(text, targetLang = 'ru') {
+    return `${CACHE_PREFIX}${encodeURIComponent(text.trim().toLowerCase())}_${targetLang}`;
+  }
+
+  function getCachedTranslation(text, targetLang = 'ru') {
+    return new Promise((resolve) => {
+      if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) {
+        resolve(null);
+        return;
+      }
+      const key = getCacheKey(text, targetLang);
+      chrome.storage.local.get([key], (result) => {
+        if (chrome.runtime.lastError) {
+          console.warn('[LexTip] Cache read error:', chrome.runtime.lastError);
+          resolve(null);
+          return;
+        }
+        const entry = result && result[key] ? result[key] : null;
+        if (!entry) {
+          resolve(null);
+          return;
+        }
+        // Legacy cache entries stored the translation as a plain string.
+        if (typeof entry === 'string') {
+          resolve({ translation: entry, detectedSourceLang: null });
+          return;
+        }
+        resolve(entry.translation ? entry : null);
+      });
+    });
+  }
+
+  function setCachedTranslation(text, targetLang = 'ru', translation, detectedSourceLang = null) {
+    if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local || !translation) return;
+    const key = getCacheKey(text, targetLang);
+    chrome.storage.local.set({ [key]: { translation, detectedSourceLang } }, () => {
+      if (chrome.runtime.lastError) {
+        console.warn('[LexTip] Cache write error:', chrome.runtime.lastError);
+      }
+    });
+  }
+
+  function requestDictionaryLookup(text, timeoutMs = 800) {
+    return new Promise((resolve) => {
+      if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.sendMessage) {
+        resolve(null);
+        return;
+      }
+
+      let timedOut = false;
+      const timer = setTimeout(() => {
+        timedOut = true;
+        resolve(null);
+      }, timeoutMs);
+
+      chrome.runtime.sendMessage(
+        {
+          type: 'TRANSLATE_REQUEST',
+          payload: { text, targetLang: 'auto' },
+        },
+        (response) => {
+          clearTimeout(timer);
+          if (timedOut) return;
+          if (chrome.runtime.lastError || !response || !response.success || !response.data) {
+            resolve(null);
+            return;
+          }
+          const { translation } = response.data;
+          if (!translation || translation.trim().toLowerCase() === 'translation not found') {
+            resolve(null);
+            return;
+          }
+          resolve(response.data);
+        }
+      );
+    });
+  }
+
+  function requestBackgroundTranslation(text, targetLang = 'ru', timeoutMs = 6000) {
+    return new Promise((resolve, reject) => {
+      if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.sendMessage) {
+        reject(new Error('Chrome runtime messaging unavailable'));
+        return;
+      }
+
+      let timedOut = false;
+      const timer = setTimeout(() => {
+        timedOut = true;
+        reject(new Error('Background translation timeout'));
+      }, timeoutMs);
+
+      chrome.runtime.sendMessage(
+        {
+          type: 'GOOGLE_TRANSLATE_REQUEST',
+          payload: { text, sourceLang: 'auto', targetLang },
+        },
+        (response) => {
+          clearTimeout(timer);
+          if (timedOut) return;
+          if (chrome.runtime.lastError) {
+            reject(new Error(chrome.runtime.lastError.message));
+            return;
+          }
+          if (!response || !response.success || !response.data) {
+            reject(new Error(response?.error || 'Translation request failed'));
+            return;
+          }
+          resolve(response.data);
+        }
+      );
+    });
+  }
+
+  async function dispatchTranslationRequest(text, requestId) {
     let resolved = false;
 
     const applyFallback = () => {
@@ -456,33 +627,64 @@
       });
     };
 
-    if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
-      try {
-        const timer = setTimeout(applyFallback, 400);
+    try {
+      // 1. Tier 1: Check offline dictionaries
+      const dictResult = await requestDictionaryLookup(text);
+      if (requestId !== currentRequestId) return;
 
-        chrome.runtime.sendMessage(
-          {
-            type: 'TRANSLATE_REQUEST',
-            payload: { text, targetLang: 'auto' },
-          },
-          (response) => {
-            clearTimeout(timer);
-            if (chrome.runtime.lastError || !response || !response.success || !response.data) {
-              applyFallback();
-              return;
-            }
-            if (requestId !== currentRequestId) return;
-            resolved = true;
-            updatePopoverContent(response.data);
-          }
+      if (dictResult) {
+        resolved = true;
+        updatePopoverContent(dictResult);
+        return;
+      }
+
+      // 2. Tier 2: Check browser local cache
+      const cached = await getCachedTranslation(text, 'ru');
+      if (requestId !== currentRequestId) return;
+
+      if (cached && cached.translation) {
+        resolved = true;
+        // Refresh labels from the cached detected source language if present.
+        const cachedSourceName = cached.detectedSourceLang
+          ? SOURCE_LANGUAGE_NAMES[String(cached.detectedSourceLang).toLowerCase()] || null
+          : null;
+        if (cachedSourceName) {
+          applyPopupLabels(`${cachedSourceName} text`, `${TARGET_LANGUAGE_NAMES['ru'] || FALLBACK_TARGET_LABEL} translation`);
+        }
+        updatePopoverContent({
+          translation: cached.translation,
+          selectedWord: text,
+          lemma: text,
+        });
+        return;
+      }
+
+      // 3. Tier 3: Fetch from Google Translate endpoint
+      const result = await requestBackgroundTranslation(text, 'ru');
+      if (requestId !== currentRequestId) return;
+
+      if (result && result.translation) {
+        resolved = true;
+        setCachedTranslation(text, 'ru', result.translation, result.detectedSourceLang);
+        // Update the source label automatically with the language Google detected.
+        const googleSourceName = result.detectedSourceLang
+          ? SOURCE_LANGUAGE_NAMES[String(result.detectedSourceLang).toLowerCase()] || null
+          : null;
+        applyPopupLabels(
+          googleSourceName ? `${googleSourceName} text` : NEUTRAL_SOURCE_LABEL,
+          `${TARGET_LANGUAGE_NAMES['ru'] || FALLBACK_TARGET_LABEL} translation`
         );
-      } catch (err) {
+        updatePopoverContent({
+          translation: result.translation,
+          selectedWord: text,
+          lemma: text,
+        });
+      } else {
         applyFallback();
       }
-    } else {
-      setTimeout(() => {
-        applyFallback();
-      }, 50);
+    } catch (error) {
+      console.warn('[LexTip] Translation dispatch error:', error);
+      applyFallback();
     }
   }
 
@@ -498,12 +700,31 @@
         ? 'Translation not found'
         : data.translation;
 
-    if (sourceEl) sourceEl.textContent = currentSelectionText;
+    // Headword line prepared by the dictionary service: matched lemma plus the
+    // original selection in parentheses when lemmatization changed the form.
+    // Falls back to the raw selection for cache/Google tiers that have no
+    // dictionary metadata. The full original selection always stays visible.
+    const displayHeadword = (data && typeof data.displayHeadword === 'string' && data.displayHeadword)
+      || currentSelectionText;
+
+    if (sourceEl) sourceEl.textContent = displayHeadword;
     if (targetEl) targetEl.textContent = targetTranslation;
-    if (originalEl) originalEl.textContent = currentSelectionText;
+    // The expanded popup reuses the same formatted headword as the collapsed
+    // one: matched lemma plus the original selection in parentheses when
+    // lemmatization changed the form.
+    if (originalEl) originalEl.textContent = displayHeadword;
     if (translationEl) translationEl.textContent = targetTranslation;
 
-    if (popoverElement && (lastActiveRange || lastSelectionRect)) {
+    // Keep labels in sync with the latest lookup result: dictionary hits are
+    // English-source lookups; cache/Google tiers update the source label from
+    // the detected language before calling this function.
+    const dictSourceName = detectSourceLanguageName(currentSelectionText);
+    applyPopupLabels(
+      dictSourceName ? `${dictSourceName} text` : NEUTRAL_SOURCE_LABEL,
+      `${TARGET_LANGUAGE_NAMES['ru'] || FALLBACK_TARGET_LABEL} translation`
+    );
+
+    if (popoverElement && popoverElement.classList.contains('ll-visible') && (lastActiveRange || lastSelectionRect)) {
       try {
         const rect = lastActiveRange ? lastActiveRange.getBoundingClientRect() : lastSelectionRect;
         lastSelectionRect = rect;
@@ -552,40 +773,79 @@
     clearTimeout(debounceTimer);
 
     debounceTimer = setTimeout(() => {
-      const selection = window.getSelection();
-
-      if (!selection || selection.isCollapsed || selection.rangeCount === 0) {
-        return;
-      }
-
-      const selectedText = selection.toString();
-      const text = selectedText.trim();
-      if (!text || text.length > CONFIG.MAX_SELECTION_LENGTH) {
-        return;
-      }
-
-      const anchorNode = selection.anchorNode;
-      const targetElement = anchorNode ? (anchorNode.nodeType === Node.ELEMENT_NODE ? anchorNode : anchorNode.parentElement) : null;
-
-      if (targetElement) {
-        if (targetElement.tagName === 'INPUT' && targetElement.type === 'password') return;
-        if (targetElement.closest && targetElement.closest('[data-lextip-ignore]')) return;
-        if (targetElement.id === CONFIG.HOST_TAG_ID || (hostElement && hostElement.contains(targetElement))) return;
-      }
-
-      const range = selection.getRangeAt(0);
-      const rect = range.getBoundingClientRect();
-
-      // Guard against zero-dimension selections
-      if (rect.width === 0 && rect.height === 0) return;
-
-      lastActiveRange = range;
-      showPopover(rect, selectedText, text);
+      const selectionInfo = getValidatedSelection();
+      if (!selectionInfo) return;
+      lastLiveSelectionText = selectionInfo.text;
+      showPopover(selectionInfo.rect, selectionInfo.selectedText, selectionInfo.text);
     }, CONFIG.DEBOUNCE_MS);
   }
 
+  // Shared validation for both final (mouseup/dblclick) and live (dragging)
+  // selections. Returns null when the current selection should be ignored.
+  function getValidatedSelection() {
+    const selection = window.getSelection();
+
+    if (!selection || selection.isCollapsed || selection.rangeCount === 0) {
+      return null;
+    }
+
+    const selectedText = selection.toString();
+    const text = selectedText.trim();
+    if (!text || text.length > CONFIG.MAX_SELECTION_LENGTH) {
+      return null;
+    }
+
+    const anchorNode = selection.anchorNode;
+    const targetElement = anchorNode ? (anchorNode.nodeType === Node.ELEMENT_NODE ? anchorNode : anchorNode.parentElement) : null;
+
+    if (targetElement) {
+      if (targetElement.tagName === 'INPUT' && targetElement.type === 'password') return null;
+      if (targetElement.closest && targetElement.closest('[data-lextip-ignore]')) return null;
+      if (targetElement.id === CONFIG.HOST_TAG_ID || (hostElement && hostElement.contains(targetElement))) return null;
+    }
+
+    const range = selection.getRangeAt(0);
+    const rect = range.getBoundingClientRect();
+
+    // Guard against zero-dimension selections
+    if (rect.width === 0 && rect.height === 0) return null;
+
+    lastActiveRange = range;
+    return { selectedText, text, rect };
+  }
+
+  // Live updates while the user is still dragging a selection: every
+  // LIVE_SELECTION_DEBOUNCE_MS (~500 ms) after the selection last changed,
+  // re-translate whatever is currently selected so the popup keeps up with
+  // an extending highlight instead of waiting for mouseup.
+  function handleLiveSelectionEvaluation() {
+    clearTimeout(liveDebounceTimer);
+
+    liveDebounceTimer = setTimeout(() => {
+      if (!isMouseDragging) return;
+
+      const selectionInfo = getValidatedSelection();
+      if (!selectionInfo) return;
+      if (selectionInfo.text === lastLiveSelectionText) return;
+
+      lastLiveSelectionText = selectionInfo.text;
+      const wasVisible = popoverElement && popoverElement.classList.contains('ll-visible');
+      showPopover(selectionInfo.rect, selectionInfo.selectedText, selectionInfo.text, { preserveExpanded: wasVisible });
+    }, CONFIG.LIVE_SELECTION_DEBOUNCE_MS);
+  }
+
   function setupEventListeners() {
+    document.addEventListener('mousedown', (e) => {
+      const path = e.composedPath ? e.composedPath() : [];
+      if (hostElement && (path.includes(hostElement) || hostElement.contains(e.target))) return;
+      isMouseDragging = true;
+      lastLiveSelectionText = '';
+      clearTimeout(liveDebounceTimer);
+    });
+
     document.addEventListener('mouseup', (e) => {
+      isMouseDragging = false;
+      clearTimeout(liveDebounceTimer);
       const path = e.composedPath ? e.composedPath() : [];
       if (hostElement && (path.includes(hostElement) || hostElement.contains(e.target))) return;
       handleSelectionEvaluation();
@@ -595,6 +855,14 @@
       const path = e.composedPath ? e.composedPath() : [];
       if (hostElement && (path.includes(hostElement) || hostElement.contains(e.target))) return;
       handleSelectionEvaluation();
+    });
+
+    // Fires on every selection change, including intermediate ones while the
+    // mouse button is held down. Only used for live drag updates here; the
+    // existing mouseup/dblclick flow is untouched.
+    document.addEventListener('selectionchange', () => {
+      if (!isMouseDragging) return;
+      handleLiveSelectionEvaluation();
     });
 
     // Escape Key: immediate dismissal
