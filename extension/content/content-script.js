@@ -628,7 +628,10 @@
 
     if (sourceEl) sourceEl.textContent = displayHeadword;
     if (targetEl) targetEl.textContent = targetTranslation;
-    if (originalEl) originalEl.textContent = currentSelectionText;
+    // The expanded popup reuses the same formatted headword as the collapsed
+    // one: matched lemma plus the original selection in parentheses when
+    // lemmatization changed the form.
+    if (originalEl) originalEl.textContent = displayHeadword;
     if (translationEl) translationEl.textContent = targetTranslation;
 
     if (popoverElement && (lastActiveRange || lastSelectionRect)) {
