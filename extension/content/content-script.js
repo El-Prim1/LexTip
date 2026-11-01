@@ -19,6 +19,37 @@
     MAX_SELECTION_LENGTH: 300,
   };
 
+  // Readable language names (never raw codes) used for the dynamic popup labels.
+  const SOURCE_LANGUAGE_NAMES = {
+    en: 'English', ru: 'Russian', de: 'German', fr: 'French', es: 'Spanish',
+    it: 'Italian', pt: 'Portuguese', nl: 'Dutch', pl: 'Polish', uk: 'Ukrainian',
+    tr: 'Turkish', ar: 'Arabic', he: 'Hebrew', ja: 'Japanese', ko: 'Korean',
+    zh: 'Chinese', sv: 'Swedish', no: 'Norwegian', da: 'Danish', fi: 'Finnish',
+    cs: 'Czech', sk: 'Slovak', hu: 'Hungarian', ro: 'Romanian', bg: 'Bulgarian',
+    el: 'Greek', hi: 'Hindi', id: 'Indonesian', th: 'Thai', vi: 'Vietnamese',
+  };
+  const TARGET_LANGUAGE_NAMES = { ru: 'Russian' };
+  const NEUTRAL_SOURCE_LABEL = 'Source text';
+  const FALLBACK_TARGET_LABEL = 'Translation';
+
+  function detectSourceLanguageName(text) {
+    // Neutral fallback instead of guessing when detection fails.
+    if (!text || typeof text !== 'string') return null;
+    // Dictionary pipeline is English -> Russian; Cyrillic selections are not
+    // English source words, so they fall back to the neutral label.
+    if (/[\u0400-\u04FF]/.test(text)) return null;
+    if (/[a-zA-Z\u00C0-\u024F]/.test(text)) return 'English';
+    return null;
+  }
+
+  function applyPopupLabels(sourceLabel, targetLabel) {
+    if (!shadowRoot) return;
+    const sourceTitleEl = shadowRoot.getElementById('ll-source-label');
+    if (sourceTitleEl) sourceTitleEl.textContent = sourceLabel;
+    const targetLabelEl = shadowRoot.getElementById('ll-target-label');
+    if (targetLabelEl) targetLabelEl.textContent = targetLabel;
+  }
+
   const ISOLATED_CSS = `
     :host {
       all: initial;
@@ -259,14 +290,14 @@
             <span class="ll-divider">—</span>
             <span class="ll-summary-text ll-target" id="ll-target">Translating...</span>
           </div>
-          <div class="ll-expanded-title">Original text</div>
+          <div class="ll-expanded-title" id="ll-source-label">Original text</div>
           <button class="ll-toggle" id="ll-toggle" type="button" aria-expanded="false" aria-controls="ll-expanded-content" aria-label="Expand translation" title="Expand translation">⋯</button>
         </div>
         <div class="ll-expanded-content" id="ll-expanded-content" aria-hidden="true">
           <div class="ll-detail-text ll-original" id="ll-original"></div>
           <div class="ll-detail-divider" aria-hidden="true"></div>
           <div>
-            <div class="ll-detail-label">Russian translation</div>
+            <div class="ll-detail-label" id="ll-target-label">Russian translation</div>
             <div class="ll-detail-text ll-detail-translation" id="ll-translation"></div>
           </div>
         </div>
@@ -429,6 +460,14 @@
     if (originalEl) originalEl.textContent = text;
     if (translationEl) translationEl.textContent = '…';
 
+    // Dynamic labels: detected source language name and selected target
+    // language name; neutral fallback when source detection fails.
+    const detectedSourceName = detectSourceLanguageName(text);
+    applyPopupLabels(
+      detectedSourceName ? `${detectedSourceName} text` : NEUTRAL_SOURCE_LABEL,
+      `${TARGET_LANGUAGE_NAMES['ru'] || FALLBACK_TARGET_LABEL} translation`
+    );
+
     popoverElement.classList.add('ll-visible');
     const coords = calculatePopoverPosition(rect);
     if (coords) applyPopoverPosition(coords);
@@ -462,15 +501,25 @@
           resolve(null);
           return;
         }
-        resolve(result && result[key] ? result[key] : null);
+        const entry = result && result[key] ? result[key] : null;
+        if (!entry) {
+          resolve(null);
+          return;
+        }
+        // Legacy cache entries stored the translation as a plain string.
+        if (typeof entry === 'string') {
+          resolve({ translation: entry, detectedSourceLang: null });
+          return;
+        }
+        resolve(entry.translation ? entry : null);
       });
     });
   }
 
-  function setCachedTranslation(text, targetLang = 'ru', translation) {
+  function setCachedTranslation(text, targetLang = 'ru', translation, detectedSourceLang = null) {
     if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local || !translation) return;
     const key = getCacheKey(text, targetLang);
-    chrome.storage.local.set({ [key]: translation }, () => {
+    chrome.storage.local.set({ [key]: { translation, detectedSourceLang } }, () => {
       if (chrome.runtime.lastError) {
         console.warn('[LexTip] Cache write error:', chrome.runtime.lastError);
       }
@@ -573,13 +622,20 @@
       }
 
       // 2. Tier 2: Check browser local cache
-      const cachedTranslation = await getCachedTranslation(text, 'ru');
+      const cached = await getCachedTranslation(text, 'ru');
       if (requestId !== currentRequestId) return;
 
-      if (cachedTranslation) {
+      if (cached && cached.translation) {
         resolved = true;
+        // Refresh labels from the cached detected source language if present.
+        const cachedSourceName = cached.detectedSourceLang
+          ? SOURCE_LANGUAGE_NAMES[String(cached.detectedSourceLang).toLowerCase()] || null
+          : null;
+        if (cachedSourceName) {
+          applyPopupLabels(`${cachedSourceName} text`, `${TARGET_LANGUAGE_NAMES['ru'] || FALLBACK_TARGET_LABEL} translation`);
+        }
         updatePopoverContent({
-          translation: cachedTranslation,
+          translation: cached.translation,
           selectedWord: text,
           lemma: text,
         });
@@ -592,7 +648,15 @@
 
       if (result && result.translation) {
         resolved = true;
-        setCachedTranslation(text, 'ru', result.translation);
+        setCachedTranslation(text, 'ru', result.translation, result.detectedSourceLang);
+        // Update the source label automatically with the language Google detected.
+        const googleSourceName = result.detectedSourceLang
+          ? SOURCE_LANGUAGE_NAMES[String(result.detectedSourceLang).toLowerCase()] || null
+          : null;
+        applyPopupLabels(
+          googleSourceName ? `${googleSourceName} text` : NEUTRAL_SOURCE_LABEL,
+          `${TARGET_LANGUAGE_NAMES['ru'] || FALLBACK_TARGET_LABEL} translation`
+        );
         updatePopoverContent({
           translation: result.translation,
           selectedWord: text,
@@ -633,6 +697,15 @@
     // lemmatization changed the form.
     if (originalEl) originalEl.textContent = displayHeadword;
     if (translationEl) translationEl.textContent = targetTranslation;
+
+    // Keep labels in sync with the latest lookup result: dictionary hits are
+    // English-source lookups; cache/Google tiers update the source label from
+    // the detected language before calling this function.
+    const dictSourceName = detectSourceLanguageName(currentSelectionText);
+    applyPopupLabels(
+      dictSourceName ? `${dictSourceName} text` : NEUTRAL_SOURCE_LABEL,
+      `${TARGET_LANGUAGE_NAMES['ru'] || FALLBACK_TARGET_LABEL} translation`
+    );
 
     if (popoverElement && (lastActiveRange || lastSelectionRect)) {
       try {
