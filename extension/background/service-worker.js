@@ -137,7 +137,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
  * @param {number} timeoutMs Request timeout in milliseconds
  * @returns {Promise<{ translation: string, detectedSourceLang: string }>}
  */
-async function fetchGoogleTranslation(text, sourceLang = 'auto', targetLang = 'ru', timeoutMs = 5000) {
+async function fetchGoogleTranslation(text, sourceLang = 'auto', targetLang = 'ru', timeoutMs = 6000) {
   const url = `https://clients5.google.com/translate_a/t?client=dict-chrome-ex&sl=${encodeURIComponent(sourceLang)}&tl=${encodeURIComponent(targetLang)}&q=${encodeURIComponent(text)}`;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
