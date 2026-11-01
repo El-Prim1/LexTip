@@ -13,13 +13,13 @@
     DEBOUNCE_MS: 150,
     // While the user is actively dragging a selection, the popup refreshes
     // the translation of the current selection on this interval (~500 ms).
-    LIVE_SELECTION_DEBOUNCE_MS: 500,
+    LIVE_SELECTION_DEBOUNCE_MS: 300,
     VIEWPORT_PADDING: 12,
     GAP: 8,
     MIN_WIDTH: 100,
     MAX_WIDTH: 480,
     HOST_TAG_ID: 'lextip-popover-host',
-    MAX_SELECTION_LENGTH: 300,
+    MAX_SELECTION_LENGTH: 1000,
   };
 
   // Readable language names (never raw codes) used for the dynamic popup labels.
