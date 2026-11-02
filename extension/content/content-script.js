@@ -271,6 +271,25 @@
   let isMouseDragging = false;
   let lastLiveSelectionText = '';
   let liveDebounceTimer = null;
+  // Chrome's built-in PDF viewer (PDFium) runs inside a restricted extension
+  // frame: DOM APIs like elementFromPoint are unavailable there, so the popup
+  // must fall back to raw mouse coordinates when positioning near the selection.
+  let isPdfViewerFrame = false;
+  // Raw mouse coordinates, used as a positioning fallback in the PDF viewer
+  // frame where selection Range rects can be unreliable.
+  let lastMousePoint = null;
+
+  function detectPdfViewerFrame() {
+    try {
+      const url = window.location.href || '';
+      return (
+        url.indexOf('chrome-extension://') === 0 &&
+        url.indexOf('/viewer/pdf.html') !== -1
+      );
+    } catch (e) {
+      return false;
+    }
+  }
 
   function initShadowHost() {
     if (hostElement && shadowRoot) return;
