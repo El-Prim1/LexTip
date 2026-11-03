@@ -271,6 +271,88 @@
   let isMouseDragging = false;
   let lastLiveSelectionText = '';
   let liveDebounceTimer = null;
+  // Chrome's built-in PDF viewer (PDFium) is hosted on a chrome-extension://
+  // page whose inner content frame has no usable DOM selection; the popup
+  // must fall back to raw mouse coordinates when positioning near the
+  // selection there.
+  let isPdfViewerFrame = false;
+  // Raw mouse coordinates, used as a positioning fallback in the PDF viewer
+  // frame where selection Range rects can be unreliable.
+  let lastMousePoint = null;
+
+  function detectPdfViewerFrame() {
+    try {
+      const url = window.location.href || '';
+      return (
+        url.indexOf('chrome-extension://') === 0 &&
+        url.indexOf('/viewer/pdf.html') !== -1
+      );
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // Chrome's built-in PDF viewer is an out-of-process extension page
+  // (mime-handler app): the content script cannot be injected there at all,
+  // so window.getSelection() never sees a selection made inside a PDF tab.
+  // The only in-page access point is the <embed> element that hosts the
+  // plugin — it exposes selectionText and selectionRect on its plugin object.
+  function isPdfDocumentPage() {
+    try {
+      if (document.contentType === 'application/pdf') return true;
+      if (window.location.protocol === 'file:' && /\.pdf$/i.test(window.location.pathname)) return true;
+      const embeds = document.getElementsByTagName('embed');
+      for (let i = 0; i < embeds.length; i++) {
+        const type = embeds[i].type || '';
+        if (type.indexOf('application/pdf') !== -1) return true;
+      }
+      return false;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // Reads the current selection from the PDFium plugin bridge. Returns null
+  // when no PDF embed or no selection is available.
+  function getPdfSelectionInfo() {
+    try {
+      const embeds = document.getElementsByTagName('embed');
+      for (let i = 0; i < embeds.length; i++) {
+        const embed = embeds[i];
+        const type = embed.type || '';
+        if (type.indexOf('application/pdf') === -1) continue;
+        const selectedText = typeof embed.selectionText === 'string' ? embed.selectionText : '';
+        const text = selectedText.trim();
+        if (!text || text.length > CONFIG.MAX_SELECTION_LENGTH) continue;
+        const sr = embed.selectionRect;
+        let rect = null;
+        if (sr && Number.isFinite(sr.left)) {
+          // In current Chrome, selectionRect is viewport-relative CSS px. If
+          // it clearly looks like document coordinates, subtract scroll offset.
+          let left = sr.left;
+          let top = sr.top;
+          if (sr.left >= 0 && sr.left + sr.width <= window.innerWidth && sr.top >= 0 && sr.top + sr.height <= window.innerHeight) {
+            left = sr.left;
+            top = sr.top;
+          } else {
+            left = sr.left - (window.scrollX || 0);
+            top = sr.top - (window.scrollY || 0);
+          }
+          rect = { left, top, right: left + sr.width, bottom: top + sr.height, width: sr.width, height: sr.height };
+        } else if (lastMousePoint) {
+          rect = {
+            left: lastMousePoint.x, top: lastMousePoint.y,
+            right: lastMousePoint.x, bottom: lastMousePoint.y,
+            width: 0, height: 0,
+          };
+        }
+        return { selectedText, text, rect };
+      }
+    } catch (e) {
+      console.warn('[LexTip] PDF plugin selection read failed:', e);
+    }
+    return null;
+  }
 
   function initShadowHost() {
     if (hostElement && shadowRoot) return;
@@ -438,6 +520,16 @@
   function showPopover(rect, text, requestText = text.trim(), options = {}) {
     if (!popoverElement) initShadowHost();
     if (!popoverElement) return;
+
+    // PDF plugin bridge may expose no usable selection rect; anchor the popup
+    // at the last known mouse position instead.
+    if ((!rect || (rect.width === 0 && rect.height === 0)) && lastMousePoint) {
+      rect = {
+        left: lastMousePoint.x, top: lastMousePoint.y,
+        right: lastMousePoint.x, bottom: lastMousePoint.y,
+        width: 0, height: 0,
+      };
+    }
 
     currentSelectionText = text;
     lastSelectionRect = rect;
@@ -769,11 +861,20 @@
     }
   }
 
+  // Selection source for the current frame: regular DOM selection everywhere,
+  // PDFium plugin bridge on PDF pages (Chrome's built-in viewer).
+  function getCurrentSelectionInfo() {
+    if (isPdfDocumentPage()) {
+      return getPdfSelectionInfo();
+    }
+    return getValidatedSelection();
+  }
+
   function handleSelectionEvaluation() {
     clearTimeout(debounceTimer);
 
     debounceTimer = setTimeout(() => {
-      const selectionInfo = getValidatedSelection();
+      const selectionInfo = getCurrentSelectionInfo();
       if (!selectionInfo) return;
       lastLiveSelectionText = selectionInfo.text;
       showPopover(selectionInfo.rect, selectionInfo.selectedText, selectionInfo.text);
@@ -824,7 +925,7 @@
     liveDebounceTimer = setTimeout(() => {
       if (!isMouseDragging) return;
 
-      const selectionInfo = getValidatedSelection();
+      const selectionInfo = getCurrentSelectionInfo();
       if (!selectionInfo) return;
       if (selectionInfo.text === lastLiveSelectionText) return;
 
@@ -834,18 +935,45 @@
     }, CONFIG.LIVE_SELECTION_DEBOUNCE_MS);
   }
 
+  // On PDF viewer pages the plugin bridge has no selection events, so poll it
+  // while a mouse drag is active and right after mouseup.
+  let pdfPollTimer = null;
+
+  function startPdfSelectionPolling() {
+    stopPdfSelectionPolling();
+    pdfPollTimer = setInterval(() => {
+      const selectionInfo = getPdfSelectionInfo();
+      if (!selectionInfo) return;
+      if (selectionInfo.text === lastLiveSelectionText) return;
+      lastLiveSelectionText = selectionInfo.text;
+      const wasVisible = popoverElement && popoverElement.classList.contains('ll-visible');
+      showPopover(selectionInfo.rect, selectionInfo.selectedText, selectionInfo.text, { preserveExpanded: wasVisible });
+    }, CONFIG.LIVE_SELECTION_DEBOUNCE_MS);
+  }
+
+  function stopPdfSelectionPolling() {
+    if (pdfPollTimer) {
+      clearInterval(pdfPollTimer);
+      pdfPollTimer = null;
+    }
+  }
+
   function setupEventListeners() {
     document.addEventListener('mousedown', (e) => {
       const path = e.composedPath ? e.composedPath() : [];
       if (hostElement && (path.includes(hostElement) || hostElement.contains(e.target))) return;
+      lastMousePoint = { x: e.clientX, y: e.clientY };
       isMouseDragging = true;
       lastLiveSelectionText = '';
       clearTimeout(liveDebounceTimer);
+      if (isPdfViewerFrame || isPdfDocumentPage()) startPdfSelectionPolling();
     });
 
     document.addEventListener('mouseup', (e) => {
       isMouseDragging = false;
+      lastMousePoint = { x: e.clientX, y: e.clientY };
       clearTimeout(liveDebounceTimer);
+      stopPdfSelectionPolling();
       const path = e.composedPath ? e.composedPath() : [];
       if (hostElement && (path.includes(hostElement) || hostElement.contains(e.target))) return;
       handleSelectionEvaluation();
@@ -961,6 +1089,7 @@
   }
 
   function init() {
+    isPdfViewerFrame = detectPdfViewerFrame();
     initShadowHost();
     setupEventListeners();
     setupSPAMutationObserver();
