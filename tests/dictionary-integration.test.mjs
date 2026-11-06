@@ -126,4 +126,26 @@ assert.equal(
 );
 assert.equal((await fallbackService.lookupWord('the')).found, true);
 
+const phraseContext = {
+  console: { log() {}, error() {} },
+  performance,
+  atob,
+  module: { exports: {} },
+  chrome: { runtime: { getURL: (file) => file } },
+  fetch: async (url) => ({
+    ok: true,
+    status: 200,
+    json: async () => (String(url).includes('statistical-en-russian-dictionary')
+      ? []
+      : [{ word: 'look after', translation: 'заботиться' }]),
+  }),
+};
+vm.runInNewContext(nlpRuntimeSource, phraseContext, { filename: 'nlp-runtime-phrase.js' });
+vm.runInNewContext(serviceSource, phraseContext, { filename: 'dictionary-service-phrase.js' });
+const phraseService = phraseContext.module.exports;
+const phraseResult = await phraseService.lookupWord('look after');
+assert.equal(phraseResult.found, true, 'exact multiword phrase lookup succeeds');
+assert.equal(phraseResult.structured.matchType, 'phrase', 'multiword lookup uses phrase matching');
+assert.equal(phraseResult.translation, 'заботиться');
+
 console.log('Dictionary integration tests passed.');
