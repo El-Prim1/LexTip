@@ -6,8 +6,7 @@
   "permissions": [
     "storage",
     "activeTab",
-    "scripting",
-    "offscreen"
+    "scripting"
   ],
   "host_permissions": [
     "https://*/*",
@@ -17,12 +16,16 @@
     "service_worker": "background/service-worker.js"
   },
   "content_security_policy": {
-    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self';"
+    "extension_pages": "script-src 'self'; object-src 'self';"
   },
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
-      "js": ["content/content-script.js"],
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "content/content-script.js"
+      ],
       "run_at": "document_idle"
     }
   ],
@@ -34,10 +37,11 @@
     {
       "resources": [
         "content/content-styles.css",
-        "dictionaries/*",
-        "assets/*"
+        "dictionaries/*"
       ],
-      "matches": ["<all_urls>"]
+      "matches": [
+        "<all_urls>"
+      ]
     }
   ]
 }
