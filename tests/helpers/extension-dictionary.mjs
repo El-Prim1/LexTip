@@ -7,6 +7,10 @@ export function loadExtensionDictionaryService(root = process.cwd()) {
     path.join(root, 'extension', 'dictionaries', 'english-russian-dictionary.json'),
     'utf8',
   ));
+  const statisticalDictionaryData = JSON.parse(fs.readFileSync(
+    path.join(root, 'extension', 'dictionaries', 'statistical-en-russian-dictionary.json'),
+    'utf8',
+  ));
   const nlpRuntimeSource = fs.readFileSync(
     path.join(root, 'extension', 'background', 'nlp-runtime.js'),
     'utf8',
@@ -21,7 +25,12 @@ export function loadExtensionDictionaryService(root = process.cwd()) {
     atob,
     module: { exports: {} },
     chrome: { runtime: { getURL: (file) => file } },
-    fetch: async () => ({ json: async () => dictionaryData }),
+    fetch: async (url) => {
+      const data = String(url).includes('statistical-en-russian-dictionary')
+        ? statisticalDictionaryData
+        : dictionaryData;
+      return { ok: true, status: 200, json: async () => data };
+    },
   };
 
   vm.runInNewContext(nlpRuntimeSource, context, { filename: 'nlp-runtime.js' });
