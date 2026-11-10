@@ -96,16 +96,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
-  if (message.type === 'AI_EXPLAIN_REQUEST') {
-    sendResponse({
-      success: true,
-      data: {
-        explanation: 'Deep linguistic analysis (Layer 3) will be handled via Gemini 2.5 Flash API.',
-      },
-    });
-    return true;
-  }
-
   if (message.type === 'GOOGLE_TRANSLATE_REQUEST') {
     const { text, sourceLang = 'auto', targetLang = 'ru' } = message.payload || {};
 
