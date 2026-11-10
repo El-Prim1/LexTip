@@ -27,7 +27,6 @@ assert(manifest.action?.default_popup === 'popup/popup.html', 'Action popup regi
 
 // 2. All referenced files exist
 assert(fs.existsSync(path.resolve('extension/content/content-script.js')), 'content-script.js exists');
-assert(fs.existsSync(path.resolve('extension/content/content-styles.css')), 'content-styles.css exists');
 assert(fs.existsSync(path.resolve('extension/background/service-worker.js')), 'service-worker.js exists');
 assert(fs.existsSync(path.resolve('extension/popup/popup.html')), 'popup.html exists');
 
@@ -62,10 +61,17 @@ assert(!contentScript.includes('SpeechSynthesisUtterance') && !contentScript.inc
 // 3.9 Fallback translation guard (no stuck ellipsis)
 assert(contentScript.includes('applyFallback') || contentScript.includes('fallback'), 'Fallback translation guard present to prevent stuck ellipsis');
 
-// 4. Stylesheet Invariants
-const styles = fs.readFileSync(path.resolve('extension/content/content-styles.css'), 'utf8');
+// 4. Inline Shadow DOM Stylesheet Invariants
+const inlineStylesMatch = contentScript.match(/const ISOLATED_CSS = `([\s\S]*?)`;/);
+assert(Boolean(inlineStylesMatch), 'Shadow DOM stylesheet is defined inline');
+const styles = inlineStylesMatch ? inlineStylesMatch[1] : '';
 assert(styles.includes('position: fixed'), 'position: fixed used for viewport accuracy');
 assert(styles.includes('z-index: 2147483647'), 'Maximum z-index specified for host layer');
+assert(
+  contentScript.includes('sheet.replaceSync(ISOLATED_CSS)')
+    || contentScript.includes('styleEl.textContent = ISOLATED_CSS'),
+  'inline stylesheet is injected into the Shadow DOM',
+);
 
 console.log(`\nResults: ${passed} passed, ${failed} failed.`);
 if (failed > 0) {
