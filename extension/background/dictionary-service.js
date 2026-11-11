@@ -215,12 +215,41 @@ function flattenTranslations(structured) {
   return [...new Set(translations)].join(', ') || null;
 }
 
-async function lookupWord(word) {
+async function lookupWord(word, sourceLanguage = 'en', targetLanguage = 'ru') {
   await loadDictionary();
-  // The original selection is preserved verbatim for the entire pipeline;
-  // lemmatization only produces lookup candidates and never replaces it.
+
+  const normSource = normalizeText(sourceLanguage) || 'en';
+  const normTarget = normalizeText(targetLanguage) || 'ru';
   const originalText = word === null || word === undefined ? '' : String(word);
   const normalizedText = normalizeText(originalText);
+
+  // Local dictionary only indexes English -> Russian
+  if ((normSource !== 'en' && normSource !== 'auto') || normTarget !== 'ru') {
+    const structured = {
+      found: false,
+      reason: 'unsupported-language-pair',
+      matches: [],
+      originalText,
+      normalizedText,
+      sourceLanguage: normSource,
+      targetLanguage: normTarget,
+      lemmaCandidates: [],
+      ambiguous: false,
+    };
+    return {
+      ...structured,
+      structured,
+      translation: null,
+      displayHeadword: normalizedText,
+      selectedWord: normalizedText,
+      lemma: normalizedText,
+      partOfSpeech: null,
+      analysis: null,
+    };
+  }
+
+  // The original selection is preserved verbatim for the entire pipeline;
+  // lemmatization only produces lookup candidates and never replaces it.
   const base = {
     originalText,
     normalizedText,

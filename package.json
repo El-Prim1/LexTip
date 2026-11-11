@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "lint": "tsc --noEmit",
+    "test": "npm run test:dictionary && npm run test:languages && node tests/phase1-verify.mjs && node tests/phase2-step2-verify.mjs && node tests/phase2-step4-verify.mjs",
     "test:dictionary": "node tests/dictionary-integration.test.mjs",
+    "test:languages": "node tests/language-configuration.test.mjs",
     "build:dictionary": "node scripts/build-statistical-dictionary.mjs",
     "build:extension-nlp": "node scripts/build-extension-nlp.mjs",
     "test:nlp": "node scripts/run-nlp-test.mjs"

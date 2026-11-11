@@ -22,18 +22,94 @@
     MAX_SELECTION_LENGTH: 1000,
   };
 
-  // Readable language names (never raw codes) used for the dynamic popup labels.
-  const SOURCE_LANGUAGE_NAMES = {
-    en: 'English', ru: 'Russian', de: 'German', fr: 'French', es: 'Spanish',
-    it: 'Italian', pt: 'Portuguese', nl: 'Dutch', pl: 'Polish', uk: 'Ukrainian',
-    tr: 'Turkish', ar: 'Arabic', he: 'Hebrew', ja: 'Japanese', ko: 'Korean',
-    zh: 'Chinese', sv: 'Swedish', no: 'Norwegian', da: 'Danish', fi: 'Finnish',
-    cs: 'Czech', sk: 'Slovak', hu: 'Hungarian', ro: 'Romanian', bg: 'Bulgarian',
-    el: 'Greek', hi: 'Hindi', id: 'Indonesian', th: 'Thai', vi: 'Vietnamese',
+  const STORAGE_KEYS = {
+    SOURCE_LANG: 'lextip_source_lang',
+    TARGET_LANG: 'lextip_target_lang',
   };
-  const TARGET_LANGUAGE_NAMES = { ru: 'Russian' };
+
+  const DEFAULT_SOURCE_LANG = 'auto';
+  const DEFAULT_TARGET_LANG = 'ru';
+
+  const SUPPORTED_LANGUAGES = [
+    { code: 'en', name: 'English' },
+    { code: 'ru', name: 'Russian' },
+    { code: 'de', name: 'German' },
+    { code: 'fr', name: 'French' },
+    { code: 'es', name: 'Spanish' },
+    { code: 'it', name: 'Italian' },
+    { code: 'pt', name: 'Portuguese' },
+    { code: 'nl', name: 'Dutch' },
+    { code: 'pl', name: 'Polish' },
+    { code: 'uk', name: 'Ukrainian' },
+    { code: 'tr', name: 'Turkish' },
+    { code: 'ar', name: 'Arabic' },
+    { code: 'he', name: 'Hebrew' },
+    { code: 'ja', name: 'Japanese' },
+    { code: 'ko', name: 'Korean' },
+    { code: 'zh', name: 'Chinese' },
+    { code: 'sv', name: 'Swedish' },
+    { code: 'no', name: 'Norwegian' },
+    { code: 'da', name: 'Danish' },
+    { code: 'fi', name: 'Finnish' },
+    { code: 'cs', name: 'Czech' },
+    { code: 'sk', name: 'Slovak' },
+    { code: 'hu', name: 'Hungarian' },
+    { code: 'ro', name: 'Romanian' },
+    { code: 'bg', name: 'Bulgarian' },
+    { code: 'el', name: 'Greek' },
+    { code: 'hi', name: 'Hindi' },
+    { code: 'id', name: 'Indonesian' },
+    { code: 'th', name: 'Thai' },
+    { code: 'vi', name: 'Vietnamese' },
+  ];
+
+  // Readable language names (never raw codes) used for the dynamic popup labels.
+  const SOURCE_LANGUAGE_NAMES = {};
+  SUPPORTED_LANGUAGES.forEach((l) => {
+    SOURCE_LANGUAGE_NAMES[l.code] = l.name;
+  });
+  const TARGET_LANGUAGE_NAMES = { ...SOURCE_LANGUAGE_NAMES };
   const NEUTRAL_SOURCE_LABEL = 'Source text';
   const FALLBACK_TARGET_LABEL = 'Translation';
+
+  let currentSourceLang = DEFAULT_SOURCE_LANG;
+  let currentTargetLang = DEFAULT_TARGET_LANG;
+  let lastDetectedSourceLang = null;
+
+  function getStorageArea() {
+    if (typeof chrome !== 'undefined' && chrome.storage) {
+      return chrome.storage.sync || chrome.storage.local;
+    }
+    return null;
+  }
+
+  function loadSavedPreferences() {
+    const storage = getStorageArea();
+    if (!storage) return;
+    storage.get([STORAGE_KEYS.SOURCE_LANG, STORAGE_KEYS.TARGET_LANG], (result) => {
+      if (chrome.runtime.lastError) return;
+      if (result && result[STORAGE_KEYS.SOURCE_LANG]) {
+        currentSourceLang = result[STORAGE_KEYS.SOURCE_LANG];
+      }
+      if (result && result[STORAGE_KEYS.TARGET_LANG]) {
+        currentTargetLang = result[STORAGE_KEYS.TARGET_LANG];
+      }
+      syncPopupSelectors();
+    });
+  }
+
+  function savePreferences(source, target) {
+    const storage = getStorageArea();
+    if (!storage) return;
+    storage.set({
+      [STORAGE_KEYS.SOURCE_LANG]: source,
+      [STORAGE_KEYS.TARGET_LANG]: target,
+    }, () => {
+      if (chrome.runtime.lastError) {
+        console.warn('[LexTip] Preference save error:', chrome.runtime.lastError);
+      }
+    });
+  }
 
   function detectSourceLanguageName(text) {
     // Neutral fallback instead of guessing when detection fails.
@@ -183,6 +259,45 @@
     .ll-popover.ll-expanded .ll-expanded-content {
       display: block;
     }
+    .ll-lang-bar {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 8px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #343b49;
+    }
+    .ll-lang-select {
+      background: #232936;
+      color: #cbd5e1;
+      border: 1px solid #343b49;
+      border-radius: 6px;
+      padding: 3px 6px;
+      font-size: 11px;
+      font-family: inherit;
+      outline: none;
+      cursor: pointer;
+      max-width: 140px;
+      flex: 1 1 0;
+      min-width: 0;
+    }
+    .ll-lang-select:hover {
+      border-color: #4b5565;
+      color: #f8fafc;
+    }
+    .ll-lang-select:focus-visible {
+      border-color: #8eb9ed;
+      outline: 1px solid #8eb9ed;
+    }
+    .ll-lang-select option:disabled {
+      color: #556075;
+      background: #171b24;
+    }
+    .ll-lang-arrow {
+      color: #788399;
+      font-size: 11px;
+      flex: 0 0 auto;
+    }
     .ll-detail-divider {
       height: 1px;
       margin: 10px 0;
@@ -302,6 +417,11 @@
           <button class="ll-toggle" id="ll-toggle" type="button" aria-expanded="false" aria-controls="ll-expanded-content" aria-label="Expand translation" title="Expand translation">⋯</button>
         </div>
         <div class="ll-expanded-content" id="ll-expanded-content" aria-hidden="true">
+          <div class="ll-lang-bar" id="ll-lang-bar">
+            <select class="ll-lang-select" id="ll-source-select" aria-label="Source language"></select>
+            <span class="ll-lang-arrow">→</span>
+            <select class="ll-lang-select" id="ll-target-select" aria-label="Target language"></select>
+          </div>
           <div class="ll-detail-text ll-original" id="ll-original"></div>
           <div class="ll-detail-divider" aria-hidden="true"></div>
           <div>
@@ -314,6 +434,45 @@
       shadowRoot.appendChild(template);
       popoverElement = template;
       arrowElement = shadowRoot.getElementById('ll-arrow');
+
+      populatePopupSelectors();
+
+      const sourceSel = shadowRoot.getElementById('ll-source-select');
+      const targetSel = shadowRoot.getElementById('ll-target-select');
+
+      if (sourceSel) {
+        sourceSel.addEventListener('change', (e) => {
+          e.stopPropagation();
+          let newSource = sourceSel.value;
+          if (newSource !== 'auto' && newSource === currentTargetLang) {
+            currentTargetLang = newSource === 'ru' ? 'en' : 'ru';
+          }
+          currentSourceLang = newSource;
+          syncPopupSelectors();
+          savePreferences(currentSourceLang, currentTargetLang);
+          retranslateCurrentSelection();
+        });
+        sourceSel.addEventListener('pointerdown', (e) => e.stopPropagation());
+        sourceSel.addEventListener('mousedown', (e) => e.stopPropagation());
+        sourceSel.addEventListener('click', (e) => e.stopPropagation());
+      }
+
+      if (targetSel) {
+        targetSel.addEventListener('change', (e) => {
+          e.stopPropagation();
+          let newTarget = targetSel.value;
+          if (currentSourceLang !== 'auto' && currentSourceLang === newTarget) {
+            currentSourceLang = newTarget === 'en' ? 'ru' : 'auto';
+          }
+          currentTargetLang = newTarget;
+          syncPopupSelectors();
+          savePreferences(currentSourceLang, currentTargetLang);
+          retranslateCurrentSelection();
+        });
+        targetSel.addEventListener('pointerdown', (e) => e.stopPropagation());
+        targetSel.addEventListener('mousedown', (e) => e.stopPropagation());
+        targetSel.addEventListener('click', (e) => e.stopPropagation());
+      }
 
       shadowRoot.getElementById('ll-toggle').addEventListener('click', (e) => {
         e.stopPropagation();
@@ -340,6 +499,79 @@
     } catch (e) {
       console.error('[LexTip] Failed to inject styles:', e);
     }
+  }
+
+  function populatePopupSelectors() {
+    if (!shadowRoot) return;
+    const sourceSel = shadowRoot.getElementById('ll-source-select');
+    const targetSel = shadowRoot.getElementById('ll-target-select');
+    if (!sourceSel || !targetSel) return;
+
+    sourceSel.innerHTML = '';
+    const autoOpt = document.createElement('option');
+    autoOpt.value = 'auto';
+    autoOpt.textContent = 'Auto-detect';
+    sourceSel.appendChild(autoOpt);
+
+    SUPPORTED_LANGUAGES.forEach((lang) => {
+      const opt = document.createElement('option');
+      opt.value = lang.code;
+      opt.textContent = lang.name;
+      sourceSel.appendChild(opt);
+    });
+
+    targetSel.innerHTML = '';
+    SUPPORTED_LANGUAGES.forEach((lang) => {
+      const opt = document.createElement('option');
+      opt.value = lang.code;
+      opt.textContent = lang.name;
+      targetSel.appendChild(opt);
+    });
+
+    syncPopupSelectors();
+  }
+
+  function syncPopupSelectors() {
+    if (!shadowRoot) return;
+    const sourceSel = shadowRoot.getElementById('ll-source-select');
+    const targetSel = shadowRoot.getElementById('ll-target-select');
+    if (!sourceSel || !targetSel) return;
+
+    sourceSel.value = currentSourceLang;
+    targetSel.value = currentTargetLang;
+
+    // Source cannot be the same as target (unless auto)
+    for (let i = 0; i < sourceSel.options.length; i++) {
+      const opt = sourceSel.options[i];
+      opt.disabled = opt.value !== 'auto' && opt.value === currentTargetLang;
+    }
+
+    // Target cannot be the same as manual source
+    for (let i = 0; i < targetSel.options.length; i++) {
+      const opt = targetSel.options[i];
+      opt.disabled = currentSourceLang !== 'auto' && opt.value === currentSourceLang;
+    }
+  }
+
+  function retranslateCurrentSelection() {
+    if (!popoverElement || !popoverElement.classList.contains('ll-visible')) return;
+    if (!currentSelectionText) return;
+
+    const targetEl = shadowRoot.getElementById('ll-target');
+    const translationEl = shadowRoot.getElementById('ll-translation');
+    if (targetEl) targetEl.textContent = '…';
+    if (translationEl) translationEl.textContent = '…';
+
+    const targetName = TARGET_LANGUAGE_NAMES[currentTargetLang] || FALLBACK_TARGET_LABEL;
+    const sourceName = currentSourceLang !== 'auto'
+      ? SOURCE_LANGUAGE_NAMES[currentSourceLang] || NEUTRAL_SOURCE_LABEL
+      : (lastDetectedSourceLang && SOURCE_LANGUAGE_NAMES[lastDetectedSourceLang]
+          ? SOURCE_LANGUAGE_NAMES[lastDetectedSourceLang]
+          : (detectSourceLanguageName(currentSelectionText) || 'Source'));
+    applyPopupLabels(`${sourceName} text`, `${targetName} translation`);
+
+    currentRequestId += 1;
+    dispatchTranslationRequest(currentSelectionText.trim(), currentRequestId);
   }
 
   /**
@@ -476,10 +708,14 @@
 
     // Dynamic labels: detected source language name and selected target
     // language name; neutral fallback when source detection fails.
-    const detectedSourceName = detectSourceLanguageName(text);
+    syncPopupSelectors();
+    const detectedSourceName = currentSourceLang !== 'auto'
+      ? SOURCE_LANGUAGE_NAMES[currentSourceLang]
+      : detectSourceLanguageName(text);
+    const targetLabelName = TARGET_LANGUAGE_NAMES[currentTargetLang] || FALLBACK_TARGET_LABEL;
     applyPopupLabels(
       detectedSourceName ? `${detectedSourceName} text` : NEUTRAL_SOURCE_LABEL,
-      `${TARGET_LANGUAGE_NAMES['ru'] || FALLBACK_TARGET_LABEL} translation`
+      `${targetLabelName} translation`
     );
 
     popoverElement.classList.add('ll-visible');
@@ -501,17 +737,17 @@
 
   const CACHE_PREFIX = 'lextip_trans_';
 
-  function getCacheKey(text, targetLang = 'ru') {
-    return `${CACHE_PREFIX}${encodeURIComponent(text.trim().toLowerCase())}_${targetLang}`;
+  function getCacheKey(text, sourceLang = 'auto', targetLang = 'ru') {
+    return `${CACHE_PREFIX}${sourceLang}_${targetLang}_${encodeURIComponent(text.trim().toLowerCase())}`;
   }
 
-  function getCachedTranslation(text, targetLang = 'ru') {
+  function getCachedTranslation(text, sourceLang = 'auto', targetLang = 'ru') {
     return new Promise((resolve) => {
       if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) {
         resolve(null);
         return;
       }
-      const key = getCacheKey(text, targetLang);
+      const key = getCacheKey(text, sourceLang, targetLang);
       chrome.storage.local.get([key], (result) => {
         if (chrome.runtime.lastError) {
           console.warn('[LexTip] Cache read error:', chrome.runtime.lastError);
@@ -520,6 +756,23 @@
         }
         const entry = result && result[key] ? result[key] : null;
         if (!entry) {
+          // Backward compatibility: check legacy cache key if source is auto and target is ru
+          if (sourceLang === 'auto' && targetLang === 'ru') {
+            const legacyKey = `${CACHE_PREFIX}${encodeURIComponent(text.trim().toLowerCase())}_${targetLang}`;
+            chrome.storage.local.get([legacyKey], (legacyResult) => {
+              const legacyEntry = legacyResult && legacyResult[legacyKey] ? legacyResult[legacyKey] : null;
+              if (legacyEntry) {
+                if (typeof legacyEntry === 'string') {
+                  resolve({ translation: legacyEntry, detectedSourceLang: null });
+                  return;
+                }
+                resolve(legacyEntry.translation ? legacyEntry : null);
+                return;
+              }
+              resolve(null);
+            });
+            return;
+          }
           resolve(null);
           return;
         }
@@ -533,17 +786,25 @@
     });
   }
 
-  function setCachedTranslation(text, targetLang = 'ru', translation, detectedSourceLang = null) {
+  function setCachedTranslation(text, sourceLang = 'auto', targetLang = 'ru', translation, detectedSourceLang = null) {
     if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local || !translation) return;
-    const key = getCacheKey(text, targetLang);
-    chrome.storage.local.set({ [key]: { translation, detectedSourceLang } }, () => {
+    const key = getCacheKey(text, sourceLang, targetLang);
+    const dataToSet = { [key]: { translation, detectedSourceLang } };
+
+    // If source was 'auto' and Google detected a language, also cache under the detected language
+    if (sourceLang === 'auto' && detectedSourceLang && detectedSourceLang !== 'auto') {
+      const specificKey = getCacheKey(text, detectedSourceLang, targetLang);
+      dataToSet[specificKey] = { translation, detectedSourceLang };
+    }
+
+    chrome.storage.local.set(dataToSet, () => {
       if (chrome.runtime.lastError) {
         console.warn('[LexTip] Cache write error:', chrome.runtime.lastError);
       }
     });
   }
 
-  function requestDictionaryLookup(text, timeoutMs = 800) {
+  function requestDictionaryLookup(text, sourceLang = 'en', targetLang = 'ru', timeoutMs = 800) {
     return new Promise((resolve) => {
       if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.sendMessage) {
         resolve(null);
@@ -559,7 +820,7 @@
       chrome.runtime.sendMessage(
         {
           type: 'TRANSLATE_REQUEST',
-          payload: { text, targetLang: 'auto' },
+          payload: { text, sourceLang, targetLang },
         },
         (response) => {
           clearTimeout(timer);
@@ -579,7 +840,7 @@
     });
   }
 
-  function requestBackgroundTranslation(text, targetLang = 'ru', timeoutMs = 6000) {
+  function requestBackgroundTranslation(text, sourceLang = 'auto', targetLang = 'ru', timeoutMs = 6000) {
     return new Promise((resolve, reject) => {
       if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.sendMessage) {
         reject(new Error('Chrome runtime messaging unavailable'));
@@ -595,7 +856,7 @@
       chrome.runtime.sendMessage(
         {
           type: 'GOOGLE_TRANSLATE_REQUEST',
-          payload: { text, sourceLang: 'auto', targetLang },
+          payload: { text, sourceLang, targetLang },
         },
         (response) => {
           clearTimeout(timer);
@@ -627,29 +888,53 @@
       });
     };
 
+    // If source and target are the same manual language, handle gracefully
+    if (currentSourceLang !== 'auto' && currentSourceLang === currentTargetLang) {
+      resolved = true;
+      updatePopoverContent({
+        translation: text,
+        selectedWord: text,
+        lemma: text,
+      });
+      return;
+    }
+
     try {
       // 1. Tier 1: Check offline dictionaries
-      const dictResult = await requestDictionaryLookup(text);
-      if (requestId !== currentRequestId) return;
+      // Local dictionary only indexes English -> Russian.
+      // If targetLang is not 'ru', or sourceLang is not 'en' or 'auto', skip dictionary.
+      const isEnglishCandidate = currentSourceLang === 'en'
+        || (currentSourceLang === 'auto' && detectSourceLanguageName(text) === 'English');
+      const canUseDictionary = currentTargetLang === 'ru' && isEnglishCandidate;
 
-      if (dictResult) {
-        resolved = true;
-        updatePopoverContent(dictResult);
-        return;
+      if (canUseDictionary) {
+        const dictResult = await requestDictionaryLookup(text, currentSourceLang, currentTargetLang);
+        if (requestId !== currentRequestId) return;
+
+        if (dictResult) {
+          resolved = true;
+          lastDetectedSourceLang = 'en';
+          updatePopoverContent(dictResult);
+          return;
+        }
       }
 
       // 2. Tier 2: Check browser local cache
-      const cached = await getCachedTranslation(text, 'ru');
+      const cached = await getCachedTranslation(text, currentSourceLang, currentTargetLang);
       if (requestId !== currentRequestId) return;
 
       if (cached && cached.translation) {
         resolved = true;
-        // Refresh labels from the cached detected source language if present.
-        const cachedSourceName = cached.detectedSourceLang
-          ? SOURCE_LANGUAGE_NAMES[String(cached.detectedSourceLang).toLowerCase()] || null
+        if (cached.detectedSourceLang) {
+          lastDetectedSourceLang = cached.detectedSourceLang;
+        }
+        const effectiveSource = currentSourceLang !== 'auto' ? currentSourceLang : cached.detectedSourceLang;
+        const cachedSourceName = effectiveSource
+          ? SOURCE_LANGUAGE_NAMES[String(effectiveSource).toLowerCase()] || null
           : null;
         if (cachedSourceName) {
-          applyPopupLabels(`${cachedSourceName} text`, `${TARGET_LANGUAGE_NAMES['ru'] || FALLBACK_TARGET_LABEL} translation`);
+          const targetName = TARGET_LANGUAGE_NAMES[currentTargetLang] || FALLBACK_TARGET_LABEL;
+          applyPopupLabels(`${cachedSourceName} text`, `${targetName} translation`);
         }
         updatePopoverContent({
           translation: cached.translation,
@@ -660,19 +945,24 @@
       }
 
       // 3. Tier 3: Fetch from Google Translate endpoint
-      const result = await requestBackgroundTranslation(text, 'ru');
+      const result = await requestBackgroundTranslation(text, currentSourceLang, currentTargetLang);
       if (requestId !== currentRequestId) return;
 
       if (result && result.translation) {
         resolved = true;
-        setCachedTranslation(text, 'ru', result.translation, result.detectedSourceLang);
-        // Update the source label automatically with the language Google detected.
-        const googleSourceName = result.detectedSourceLang
-          ? SOURCE_LANGUAGE_NAMES[String(result.detectedSourceLang).toLowerCase()] || null
+        if (result.detectedSourceLang) {
+          lastDetectedSourceLang = result.detectedSourceLang;
+        }
+        setCachedTranslation(text, currentSourceLang, currentTargetLang, result.translation, result.detectedSourceLang);
+        // Update the source label automatically with the language Google detected or manual selection
+        const effectiveSource = currentSourceLang !== 'auto' ? currentSourceLang : result.detectedSourceLang;
+        const googleSourceName = effectiveSource
+          ? SOURCE_LANGUAGE_NAMES[String(effectiveSource).toLowerCase()] || null
           : null;
+        const targetName = TARGET_LANGUAGE_NAMES[currentTargetLang] || FALLBACK_TARGET_LABEL;
         applyPopupLabels(
           googleSourceName ? `${googleSourceName} text` : NEUTRAL_SOURCE_LABEL,
-          `${TARGET_LANGUAGE_NAMES['ru'] || FALLBACK_TARGET_LABEL} translation`
+          `${targetName} translation`
         );
         updatePopoverContent({
           translation: result.translation,
@@ -715,13 +1005,15 @@
     if (originalEl) originalEl.textContent = displayHeadword;
     if (translationEl) translationEl.textContent = targetTranslation;
 
-    // Keep labels in sync with the latest lookup result: dictionary hits are
-    // English-source lookups; cache/Google tiers update the source label from
-    // the detected language before calling this function.
-    const dictSourceName = detectSourceLanguageName(currentSelectionText);
+    // Keep labels in sync with the latest lookup result
+    const effectiveSource = currentSourceLang !== 'auto'
+      ? currentSourceLang
+      : (lastDetectedSourceLang || detectSourceLanguageName(currentSelectionText));
+    const sourceLabelName = SOURCE_LANGUAGE_NAMES[effectiveSource] || (effectiveSource === 'English' ? 'English' : null);
+    const targetLabelName = TARGET_LANGUAGE_NAMES[currentTargetLang] || FALLBACK_TARGET_LABEL;
     applyPopupLabels(
-      dictSourceName ? `${dictSourceName} text` : NEUTRAL_SOURCE_LABEL,
-      `${TARGET_LANGUAGE_NAMES['ru'] || FALLBACK_TARGET_LABEL} translation`
+      sourceLabelName ? `${sourceLabelName} text` : NEUTRAL_SOURCE_LABEL,
+      `${targetLabelName} translation`
     );
 
     if (popoverElement && popoverElement.classList.contains('ll-visible') && (lastActiveRange || lastSelectionRect)) {
@@ -961,9 +1253,30 @@
   }
 
   function init() {
+    loadSavedPreferences();
     initShadowHost();
     setupEventListeners();
     setupSPAMutationObserver();
+
+    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.onChanged) {
+      chrome.storage.onChanged.addListener((changes) => {
+        let updated = false;
+        if (changes[STORAGE_KEYS.SOURCE_LANG]) {
+          currentSourceLang = changes[STORAGE_KEYS.SOURCE_LANG].newValue || DEFAULT_SOURCE_LANG;
+          updated = true;
+        }
+        if (changes[STORAGE_KEYS.TARGET_LANG]) {
+          currentTargetLang = changes[STORAGE_KEYS.TARGET_LANG].newValue || DEFAULT_TARGET_LANG;
+          updated = true;
+        }
+        if (updated) {
+          syncPopupSelectors();
+          if (popoverElement && popoverElement.classList.contains('ll-visible')) {
+            retranslateCurrentSelection();
+          }
+        }
+      });
+    }
   }
 
   if (document.readyState === 'loading') {

@@ -16,7 +16,7 @@ chrome.runtime.onInstalled.addListener(() => {
 // Runtime Message Router (Content Script -> Service Worker)
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'TRANSLATE_REQUEST') {
-    const { text } = message.payload || {};
+    const { text, sourceLang = 'en', targetLang = 'ru' } = message.payload || {};
 
     if (!text || typeof text !== 'string') {
       sendResponse({
@@ -36,7 +36,25 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     const startTime = performance.now();
 
-    lookupWord(text).then((result) => {
+    // Local dictionary only supports English -> Russian
+    const isPairSupported = (!sourceLang || sourceLang === 'en' || sourceLang === 'auto')
+      && (!targetLang || targetLang === 'ru');
+
+    const lookupAction = isPairSupported
+      ? lookupWord(text)
+      : Promise.resolve({
+          found: false,
+          reason: 'unsupported-language-pair',
+          translation: null,
+          lemma: text,
+          selectedWord: text,
+          originalText: text,
+          displayHeadword: text,
+          partOfSpeech: null,
+          analysis: null,
+        });
+
+    lookupAction.then((result) => {
       const latencyMs = Math.max(0.1, Number((performance.now() - startTime).toFixed(2)));
 
       if (result.found) {
@@ -128,6 +146,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
  * @returns {Promise<{ translation: string, detectedSourceLang: string }>}
  */
 async function fetchGoogleTranslation(text, sourceLang = 'auto', targetLang = 'ru', timeoutMs = 6000) {
+  if (sourceLang && targetLang && sourceLang !== 'auto' && sourceLang === targetLang) {
+    return { translation: text, detectedSourceLang: sourceLang };
+  }
+
   const url = `https://clients5.google.com/translate_a/t?client=dict-chrome-ex&sl=${encodeURIComponent(sourceLang)}&tl=${encodeURIComponent(targetLang)}&q=${encodeURIComponent(text)}`;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
