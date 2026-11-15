@@ -418,9 +418,9 @@
         </div>
         <div class="ll-expanded-content" id="ll-expanded-content" aria-hidden="true">
           <div class="ll-lang-bar" id="ll-lang-bar">
-            <select class="ll-lang-select" id="ll-source-select" aria-label="Source language"></select>
+            <select class="ll-lang-select" id="ll-source-select" aria-label="Source language" title="Source language"></select>
             <span class="ll-lang-arrow">→</span>
-            <select class="ll-lang-select" id="ll-target-select" aria-label="Target language"></select>
+            <select class="ll-lang-select" id="ll-target-select" aria-label="Target language" title="Target language"></select>
           </div>
           <div class="ll-detail-text ll-original" id="ll-original"></div>
           <div class="ll-detail-divider" aria-hidden="true"></div>
@@ -566,8 +566,8 @@
     const sourceName = currentSourceLang !== 'auto'
       ? SOURCE_LANGUAGE_NAMES[currentSourceLang] || NEUTRAL_SOURCE_LABEL
       : (lastDetectedSourceLang && SOURCE_LANGUAGE_NAMES[lastDetectedSourceLang]
-          ? SOURCE_LANGUAGE_NAMES[lastDetectedSourceLang]
-          : (detectSourceLanguageName(currentSelectionText) || 'Source'));
+        ? SOURCE_LANGUAGE_NAMES[lastDetectedSourceLang]
+        : (detectSourceLanguageName(currentSelectionText) || 'Source'));
     applyPopupLabels(`${sourceName} text`, `${targetName} translation`);
 
     currentRequestId += 1;
