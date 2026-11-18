@@ -1,0 +1,58 @@
+# Task: Prepare LexTip for LibreTranslate Migration
+
+Prepare the LexTip project for migration to a self-hosted LibreTranslate server. The goal is to make both the backend deployment project and browser extension deployment-ready. **Do not deploy anything. I will handle GitHub and Render deployment manually.**
+
+## 1. Backend preparation — mandatory deliverable
+
+Create a **complete, standalone LibreTranslate deployment repository** in a separate directory, independent of the LexTip extension repository.
+
+The repository must be ready for me to upload to a new GitHub repository and connect to Render.
+
+Include:
+
+- Render deployment configuration (`render.yaml`).
+- Official LibreTranslate Docker image with a pinned version.
+- Required environment configuration and deployment settings.
+- Persistent storage configuration if required.
+- A README with setup, GitHub upload, Render deployment, configuration, and maintenance instructions.
+- `.gitignore` and `.env.example` where appropriate.
+- No credentials, secrets, or hardcoded personal configuration.
+
+## 2. Extension preparation
+
+- Inspect the current translation architecture and identify the existing backend integration.
+- Prepare the extension to use a configurable LibreTranslate API base URL.
+- Keep environment-specific configuration outside the extension's source logic.
+- Implement the necessary request format and response handling for LibreTranslate.
+- Integrate supported-language discovery and automatic source detection.
+- Preserve the existing language preferences, dictionary-first lookup, translation cache, and fallback behavior.
+- Ensure cache entries are separated by source and target language.
+
+## 3. Constraints
+
+- Do not deploy to GitHub, Render, or any external service.
+- Do not create accounts, publish repositories, or request credentials.
+- Do not rewrite the dictionary or its lookup architecture.
+- Do not introduce unofficial translation endpoints or another translation engine.
+- Preserve the current popup and settings-page design, including the latest approved styles.
+- Avoid unrelated refactoring and unnecessary dependencies.
+
+## 4. Verification
+
+- Validate the backend deployment configuration.
+- Verify the extension's request and response handling using local tests or controlled mocks.
+- Test automatic detection, manual source selection, target selection, unsupported language pairs, and error handling.
+- Confirm that the existing English-to-Russian workflow remains functional.
+
+## 5. Final report
+
+Provide:
+
+- The prepared backend project structure.
+- Files created or modified.
+- The exact steps I need to perform manually to deploy the backend on GitHub and Render.
+- Where to obtain and configure the deployed API URL.
+- How to configure the extension to use that URL.
+- Tests performed and any remaining limitations.
+
+Complete all preparation and verification possible locally. Do not claim that the server is deployed or operational.
