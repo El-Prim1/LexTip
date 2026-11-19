@@ -30,7 +30,9 @@
   const DEFAULT_SOURCE_LANG = 'auto';
   const DEFAULT_TARGET_LANG = 'ru';
 
-  const SUPPORTED_LANGUAGES = [
+  // Fallback list used when the LibreTranslate server is unreachable. The live
+  // list is discovered from the server's /languages endpoint at startup.
+  let SUPPORTED_LANGUAGES = [
     { code: 'en', name: 'English' },
     { code: 'ru', name: 'Russian' },
     { code: 'de', name: 'German' },
@@ -64,11 +66,11 @@
   ];
 
   // Readable language names (never raw codes) used for the dynamic popup labels.
-  const SOURCE_LANGUAGE_NAMES = {};
+  let SOURCE_LANGUAGE_NAMES = {};
   SUPPORTED_LANGUAGES.forEach((l) => {
     SOURCE_LANGUAGE_NAMES[l.code] = l.name;
   });
-  const TARGET_LANGUAGE_NAMES = { ...SOURCE_LANGUAGE_NAMES };
+  let TARGET_LANGUAGE_NAMES = { ...SOURCE_LANGUAGE_NAMES };
   const NEUTRAL_SOURCE_LABEL = 'Source text';
   const FALLBACK_TARGET_LABEL = 'Translation';
 
@@ -119,6 +121,59 @@
     if (/[\u0400-\u04FF]/.test(text)) return null;
     if (/[a-zA-Z\u00C0-\u024F]/.test(text)) return 'English';
     return null;
+  }
+
+  function applySupportedLanguages(languages) {
+    if (!Array.isArray(languages) || languages.length === 0) return;
+
+    const seen = new Set();
+    const normalized = [];
+    languages.forEach((language) => {
+      if (!language || typeof language.code !== 'string' || !language.code.trim()) return;
+      const code = language.code.trim();
+      if (seen.has(code)) return;
+      seen.add(code);
+      normalized.push({
+        code,
+        name: typeof language.name === 'string' && language.name.trim() ? language.name.trim() : code,
+      });
+    });
+    if (normalized.length === 0) return;
+
+    SUPPORTED_LANGUAGES = normalized;
+    SOURCE_LANGUAGE_NAMES = {};
+    TARGET_LANGUAGE_NAMES = {};
+    normalized.forEach((language) => {
+      SOURCE_LANGUAGE_NAMES[language.code] = language.name;
+      TARGET_LANGUAGE_NAMES[language.code] = language.name;
+    });
+
+    // Keep the saved preferences valid against the server's language set.
+    if (currentSourceLang !== 'auto' && !SOURCE_LANGUAGE_NAMES[currentSourceLang]) {
+      currentSourceLang = 'auto';
+    }
+    if (!TARGET_LANGUAGE_NAMES[currentTargetLang]) {
+      currentTargetLang = TARGET_LANGUAGE_NAMES.ru ? 'ru' : normalized[0].code;
+    }
+
+    populatePopupSelectors();
+  }
+
+  function requestSupportedLanguages() {
+    if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.sendMessage) return;
+    try {
+      chrome.runtime.sendMessage(
+        { type: 'LIBRETRANSLATE_LANGUAGES_REQUEST' },
+        (response) => {
+          if (chrome.runtime.lastError || !response || !response.success || !Array.isArray(response.data)) {
+            return;
+          }
+          applySupportedLanguages(response.data);
+        }
+      );
+    } catch (error) {
+      console.warn('[LexTip] Could not discover LibreTranslate languages:', error);
+    }
   }
 
   function applyPopupLabels(sourceLabel, targetLabel) {
@@ -791,7 +846,7 @@
     const key = getCacheKey(text, sourceLang, targetLang);
     const dataToSet = { [key]: { translation, detectedSourceLang } };
 
-    // If source was 'auto' and Google detected a language, also cache under the detected language
+    // If source was 'auto' and the server detected a language, also cache under the detected language
     if (sourceLang === 'auto' && detectedSourceLang && detectedSourceLang !== 'auto') {
       const specificKey = getCacheKey(text, detectedSourceLang, targetLang);
       dataToSet[specificKey] = { translation, detectedSourceLang };
@@ -840,7 +895,7 @@
     });
   }
 
-  function requestBackgroundTranslation(text, sourceLang = 'auto', targetLang = 'ru', timeoutMs = 6000) {
+  function requestLibreTranslate(text, sourceLang = 'auto', targetLang = 'ru', timeoutMs = 12000) {
     return new Promise((resolve, reject) => {
       if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.sendMessage) {
         reject(new Error('Chrome runtime messaging unavailable'));
@@ -855,7 +910,7 @@
 
       chrome.runtime.sendMessage(
         {
-          type: 'GOOGLE_TRANSLATE_REQUEST',
+          type: 'LIBRETRANSLATE_REQUEST',
           payload: { text, sourceLang, targetLang },
         },
         (response) => {
@@ -944,8 +999,8 @@
         return;
       }
 
-      // 3. Tier 3: Fetch from Google Translate endpoint
-      const result = await requestBackgroundTranslation(text, currentSourceLang, currentTargetLang);
+      // 3. Tier 3: Fetch from the configured LibreTranslate backend
+      const result = await requestLibreTranslate(text, currentSourceLang, currentTargetLang);
       if (requestId !== currentRequestId) return;
 
       if (result && result.translation) {
@@ -954,14 +1009,15 @@
           lastDetectedSourceLang = result.detectedSourceLang;
         }
         setCachedTranslation(text, currentSourceLang, currentTargetLang, result.translation, result.detectedSourceLang);
-        // Update the source label automatically with the language Google detected or manual selection
+        // Update the source label automatically with the language LibreTranslate
+        // detected or the manual selection.
         const effectiveSource = currentSourceLang !== 'auto' ? currentSourceLang : result.detectedSourceLang;
-        const googleSourceName = effectiveSource
+        const detectedSourceName = effectiveSource
           ? SOURCE_LANGUAGE_NAMES[String(effectiveSource).toLowerCase()] || null
           : null;
         const targetName = TARGET_LANGUAGE_NAMES[currentTargetLang] || FALLBACK_TARGET_LABEL;
         applyPopupLabels(
-          googleSourceName ? `${googleSourceName} text` : NEUTRAL_SOURCE_LABEL,
+          detectedSourceName ? `${detectedSourceName} text` : NEUTRAL_SOURCE_LABEL,
           `${targetName} translation`
         );
         updatePopoverContent({
@@ -992,7 +1048,7 @@
 
     // Headword line prepared by the dictionary service: matched lemma plus the
     // original selection in parentheses when lemmatization changed the form.
-    // Falls back to the raw selection for cache/Google tiers that have no
+    // Falls back to the raw selection for cache/LibreTranslate tiers that have no
     // dictionary metadata. The full original selection always stays visible.
     const displayHeadword = (data && typeof data.displayHeadword === 'string' && data.displayHeadword)
       || currentSelectionText;
@@ -1255,6 +1311,7 @@
   function init() {
     loadSavedPreferences();
     initShadowHost();
+    requestSupportedLanguages();
     setupEventListeners();
     setupSPAMutationObserver();
 

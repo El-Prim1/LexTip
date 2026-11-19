@@ -14,7 +14,9 @@
   const DEFAULT_SOURCE_LANG = 'auto';
   const DEFAULT_TARGET_LANG = 'ru';
 
-  const SUPPORTED_LANGUAGES = [
+  // Fallback list used when the LibreTranslate server is unreachable. The live
+  // list is discovered from the server's /languages endpoint at startup.
+  let SUPPORTED_LANGUAGES = [
     { code: 'en', name: 'English' },
     { code: 'ru', name: 'Russian' },
     { code: 'de', name: 'German' },
@@ -157,6 +159,54 @@
     });
   }
 
+  function applySupportedLanguages(languages) {
+    if (!Array.isArray(languages) || languages.length === 0) return;
+
+    const seen = new Set();
+    const normalized = [];
+    languages.forEach((language) => {
+      if (!language || typeof language.code !== 'string' || !language.code.trim()) return;
+      const code = language.code.trim();
+      if (seen.has(code)) return;
+      seen.add(code);
+      normalized.push({
+        code,
+        name: typeof language.name === 'string' && language.name.trim() ? language.name.trim() : code,
+      });
+    });
+    if (normalized.length === 0) return;
+
+    SUPPORTED_LANGUAGES = normalized;
+    if (currentSource !== 'auto' && !normalized.some((language) => language.code === currentSource)) {
+      currentSource = 'auto';
+    }
+    if (!normalized.some((language) => language.code === currentTarget)) {
+      currentTarget = normalized.some((language) => language.code === 'ru')
+        ? 'ru'
+        : normalized[0].code;
+    }
+    populateOptions();
+    if (sourceSelect) sourceSelect.value = currentSource;
+    if (targetSelect) targetSelect.value = currentTarget;
+  }
+
+  function requestSupportedLanguages() {
+    if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.sendMessage) return;
+    try {
+      chrome.runtime.sendMessage(
+        { type: 'LIBRETRANSLATE_LANGUAGES_REQUEST' },
+        (response) => {
+          if (chrome.runtime.lastError || !response || !response.success || !Array.isArray(response.data)) {
+            return;
+          }
+          applySupportedLanguages(response.data);
+        }
+      );
+    } catch (error) {
+      console.warn('[LexTip Settings] Could not discover LibreTranslate languages:', error);
+    }
+  }
+
   function setupListeners() {
     if (sourceSelect) {
       sourceSelect.addEventListener('change', () => {
@@ -212,6 +262,7 @@
   function init() {
     populateOptions();
     loadPreferences();
+    requestSupportedLanguages();
     setupListeners();
   }
 

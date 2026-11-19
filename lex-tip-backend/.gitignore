@@ -1,0 +1,21 @@
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+
+# Python / LibreTranslate local artefacts
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Local data (API-key database, downloaded models, cache)
+data/
+db.sqlite3
+
+# OS files
+.DS_Store
+Thumbs.db

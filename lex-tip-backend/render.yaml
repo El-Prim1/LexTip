@@ -1,0 +1,32 @@
+services:
+  - type: web
+    name: lextip-libretranslate
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /languages
+    envVars:
+      # Keep the image small and fast to boot by loading only the languages
+      # LexTip needs. Add more codes (comma separated) if you extend LexTip.
+      - key: LT_LOAD_ONLY
+        value: en,ru
+      - key: LT_DISABLE_WEB_UI
+        value: "true"
+      - key: LT_UPDATE_MODELS
+        value: "true"
+      - key: LT_HOST
+        value: 0.0.0.0
+      # Optional: require an API key. Create the key in the LibreTranslate
+      # database after the first deploy, then set LT_API_KEYS here.
+      # - key: LT_API_KEYS
+      #   sync: false
+      # - key: LT_API_KEYS_DB_PATH
+      #   value: /data/api_keys.db
+
+    # Persistent storage is optional. Render persistent disks require a paid
+    # instance type; on the free plan leave this block commented out. When
+    # enabled, mount it and set LT_API_KEYS_DB_PATH to a path under /data.
+    # disk:
+    #   name: lextip-data
+    #   mountPath: /data
+    #   sizeGB: 1
