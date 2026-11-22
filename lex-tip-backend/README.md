@@ -33,11 +33,21 @@ important ones are:
 | `LT_DISABLE_WEB_UI` | Disable the bundled demo web UI. | `true` |
 | `LT_UPDATE_MODELS` | Update Argos models on startup. | `true` |
 | `LT_HOST` | Bind address inside the container. | `0.0.0.0` |
+| `LT_CHAR_LIMIT` | Maximum characters per request. | `2000` |
+| `LT_REQ_LIMIT` | Maximum requests per minute per client. | `120` |
+| `LT_BATCH_LIMIT` | Maximum number of texts in a batch request. | `1` |
 | `LT_API_KEYS` | Optional comma-separated API keys. Empty = anonymous. | empty |
 | `LT_API_KEYS_DB_PATH` | Optional path for the API-key database. | `/data/api_keys.db` |
 
-`render.yaml` already sets the first four. The commented entries show how to
-enable API keys and persistent storage later.
+`render.yaml` already sets the core variables. The rate and size limits
+(`LT_CHAR_LIMIT`, `LT_REQ_LIMIT`, `LT_BATCH_LIMIT`) are configured for LexTip:
+- LexTip enforces a 1000-character client-side limit, so the server limit of
+  2000 provides headroom.
+- 120 requests per minute per client is generous for personal use and prevents
+  abuse.
+- `LT_BATCH_LIMIT=1` aligns with LexTip's single-text request pattern.
+
+The commented entries show how to enable API keys and persistent storage later.
 
 ### API keys
 
@@ -143,6 +153,10 @@ curl -s -X POST https://<your-service>.onrender.com/translate \
   `docker-compose.yml`, commit, and redeploy. Read the release notes first.
 - **Add a language:** append its code to `LT_LOAD_ONLY` in `render.yaml` and
   redeploy. LexTip discovers supported languages from `/languages`.
+- **Adjust rate/size limits:** modify `LT_CHAR_LIMIT`, `LT_REQ_LIMIT`, or
+  `LT_BATCH_LIMIT` in `render.yaml` if your usage patterns change. The current
+  values (2000 chars, 120 req/min, batch=1) are tuned for LexTip's single-text
+  selection workflow.
 - **Rotate API keys:** update `LT_API_KEYS` in the Render dashboard, then update
   the extension config. Never commit the key.
 - **Logs:** use the Render dashboard logs. No application logs are committed.

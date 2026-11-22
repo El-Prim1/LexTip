@@ -16,6 +16,14 @@ services:
         value: "true"
       - key: LT_HOST
         value: 0.0.0.0
+      # Rate and size limits to prevent abuse.
+      # LexTip sends single-text requests with a 1000-character client-side limit.
+      - key: LT_CHAR_LIMIT
+        value: "2000"
+      - key: LT_REQ_LIMIT
+        value: "120"
+      - key: LT_BATCH_LIMIT
+        value: "1"
       # Optional: require an API key. Create the key in the LibreTranslate
       # database after the first deploy, then set LT_API_KEYS here.
       # - key: LT_API_KEYS
