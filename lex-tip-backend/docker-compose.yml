@@ -11,6 +11,9 @@ services:
       LT_UPDATE_MODELS: ${LT_UPDATE_MODELS:-true}
       LT_HOST: 0.0.0.0
       LT_PORT: 5000
+      LT_CHAR_LIMIT: ${LT_CHAR_LIMIT:-2000}
+      LT_REQ_LIMIT: ${LT_REQ_LIMIT:-120}
+      LT_BATCH_LIMIT: ${LT_BATCH_LIMIT:-1}
       # LT_API_KEYS: ${LT_API_KEYS:-}
     # Uncomment to persist the API-key database between local restarts.
     # volumes:
