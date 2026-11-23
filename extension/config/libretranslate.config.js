@@ -12,6 +12,6 @@
  * anonymous requests. A key embedded in a browser extension is not secret.
  */
 globalThis.LEXTIP_CONFIG = {
-  libretranslateBaseUrl: "http://localhost:5000",
+  libretranslateBaseUrl: "https://lextip-libretranslate.onrender.com",
   libretranslateApiKey: "",
 };
